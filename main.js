@@ -152,8 +152,7 @@ update() {
     button.on('pointerup', () => button.isDown = false);
     button.on('pointerout', () => button.isDown = false);
     button.on('pointerupoutside', () => button.isDown = false);
-}
-}
+}}
 
 const config = {
     type: Phaser.AUTO,
