@@ -38,6 +38,8 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
+        this.input.addPointer(1);
+
         let map = this.add.image(0, 0, 'map').setOrigin(0, 0);
         map.displayWidth = 1600;
         map.displayHeight = 1200;
@@ -98,13 +100,6 @@ class GameScene extends Phaser.Scene {
         this.bindButton(this.left);
         this.bindButton(this.right);
 
-        
-        this.input.on('pointerup', () => {
-        this.up.isDown = false;
-        this.down.isDown = false;
-        this.left.isDown = false;
-        this.right.isDown = false;
-    });
     }
 
 update() {
@@ -143,14 +138,21 @@ update() {
     }
 }
 
-    bindButton(button) {
-        button.isDown = false;
+   bindButton(button) {
+    button.isDown = false;
 
-        button.on('pointerdown', () => button.isDown = true);
-        button.on('pointerup', () => button.isDown = false);
-        button.on('pointerout', () => button.isDown = false); 
-        button.on('pointerupoutside', () => button.isDown = false);
-            }
+    button.on('pointerdown', () => button.isDown = true);
+
+    button.on('pointerover', () => {
+        if (this.input.activePointer.isDown) {
+            button.isDown = true;
+        }
+    });
+
+    button.on('pointerup', () => button.isDown = false);
+    button.on('pointerout', () => button.isDown = false);
+    button.on('pointerupoutside', () => button.isDown = false);
+}
 }
 
 const config = {
