@@ -97,6 +97,14 @@ class GameScene extends Phaser.Scene {
         this.bindButton(this.down);
         this.bindButton(this.left);
         this.bindButton(this.right);
+
+        
+        this.input.on('pointerup', () => {
+        this.up.isDown = false;
+        this.down.isDown = false;
+        this.left.isDown = false;
+        this.right.isDown = false;
+    });
     }
 
 update() {
@@ -140,8 +148,9 @@ update() {
 
         button.on('pointerdown', () => button.isDown = true);
         button.on('pointerup', () => button.isDown = false);
+        button.on('pointerout', () => button.isDown = false); 
         button.on('pointerupoutside', () => button.isDown = false);
-    }
+            }
 }
 
 const config = {
