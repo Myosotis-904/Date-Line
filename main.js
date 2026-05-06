@@ -4,17 +4,28 @@ class StartScene extends Phaser.Scene {
     }
 
     create() {
-        this.add.text(400, 200, '換日線', {
-            fontSize: '40px',
-            fill: '#fff'
-        });
+       this.add.text(
+       this.scale.width / 2,
+       this.scale.height / 2 - 50,
+       '換日線',
+    {
+        fontSize: '40px',
+        fill: '#fff'
+    }
+).setOrigin(0.5);
 
-        let startText = this.add.text(400, 300, '點擊開始', {
-            fontSize: '30px',
-            fill: '#a5e8ff'
-        }).setInteractive();
-
-        startText.on('pointerdown', () => {
+        let startText = this.add.text(
+    this.scale.width / 2,
+    this.scale.height / 2 + 50,
+    '點擊開始',
+    {
+        fontSize: '30px',
+        fill: '#a5e8ff'
+    }
+)
+    .setOrigin(0.5)
+    .setInteractive();
+     startText.on('pointerdown', () => {
             this.scene.start('GameScene');
         });
     }
@@ -38,10 +49,14 @@ class GameScene extends Phaser.Scene {
         this.input.addPointer(3);
 
         let map = this.add.image(0, 0, 'map').setOrigin(0, 0);
-        map.displayWidth = 1600;
-        map.displayHeight = 1200;
+            map.displayWidth = this.scale.width;
+            map.displayHeight = this.scale.height;
 
-        this.player = this.add.sprite(800, 600, 'player').setScale(0.7);
+        this.player = this.add.sprite(
+        this.scale.width / 2,
+        this.scale.height / 2,
+        'player'
+        ).setScale(0.7);
 
         this.anims.create({
             key: 'idle',
@@ -80,10 +95,10 @@ class GameScene extends Phaser.Scene {
         this.player.anims.play('idle');
 
         this.cameras.main.startFollow(this.player);
-        this.cameras.main.setBounds(0, 0, 1600, 1200);
+        this.cameras.main.setBounds(0, 0, this.scale.width, this.scale.height);
 
         this.baseX = 120;
-        this.baseY = 420;
+        this.baseY = this.scale.height - 120;
 
         this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
             .setScrollFactor(0);
@@ -152,12 +167,14 @@ class GameScene extends Phaser.Scene {
 
 const config = {
     type: Phaser.AUTO,
-    width: 960,
-    height: 540,
+    width: window.innerWidth,
+    height: window.innerHeight,
+
     scale: {
-        mode: Phaser.Scale.FIT,
+        mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
+
     scene: [StartScene, GameScene]
 };
 
