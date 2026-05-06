@@ -4,23 +4,26 @@
   <meta charset="UTF-8">
   <title>My Game</title>
 
-  <!-- 載入 Phaser -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100dvh;
+        overflow: hidden;
+        touch-action: none;
+    }
+
+    canvas {
+        touch-action: none;
+    }
+  </style>
+
 </head>
+
 <body>
-<script src="main.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
-
-<style>
-body, html {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    touch-action: none;
-}
-
-canvas {
-    touch-action: none;
-}
-</style>
