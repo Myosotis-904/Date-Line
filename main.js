@@ -27,18 +27,15 @@ class GameScene extends Phaser.Scene {
 
     preload() {
         this.load.image('map', 'assets/map.png');
+
         this.load.spritesheet('player', 'assets/player.png', {
             frameWidth: 256,
             frameHeight: 256
-        })
-        this.load.image('up', 'assets/up.png');
-        this.load.image('down', 'assets/down.png');
-        this.load.image('right', 'assets/right.png');
-        this.load.image('left', 'assets/left.png');
+        });
     }
 
     create() {
-        this.input.addPointer(1);
+        this.input.addPointer(3);
 
         let map = this.add.image(0, 0, 'map').setOrigin(0, 0);
         map.displayWidth = 1600;
@@ -56,8 +53,6 @@ class GameScene extends Phaser.Scene {
             repeat: -1
         });
 
-        this.player.anims.play('idle');
-
         this.anims.create({
             key: 'walk_left',
             frames: [
@@ -66,7 +61,7 @@ class GameScene extends Phaser.Scene {
                 { key: 'player', frame: 4 },
                 { key: 'player', frame: 3 }
             ],
-            frameRate: 2.5,
+            frameRate: 4,
             repeat: -1
         });
 
@@ -78,81 +73,82 @@ class GameScene extends Phaser.Scene {
                 { key: 'player', frame: 7 },
                 { key: 'player', frame: 6 }
             ],
-            frameRate: 2.5,
+            frameRate: 4,
             repeat: -1
         });
+
+        this.player.anims.play('idle');
 
         this.cameras.main.startFollow(this.player);
         this.cameras.main.setBounds(0, 0, 1600, 1200);
 
-        this.up = this.add.image(140, 380, 'up').setInteractive().setScale(0.2);
-        this.down = this.add.image(140, 500, 'down').setInteractive().setScale(0.2);
-        this.left = this.add.image(80, 440, 'left').setInteractive().setScale(0.2);
-        this.right = this.add.image(200, 440, 'right').setInteractive().setScale(0.2);
+        this.baseX = 120;
+        this.baseY = 420;
 
-        this.up.setScrollFactor(0);
-        this.down.setScrollFactor(0);
-        this.left.setScrollFactor(0);
-        this.right.setScrollFactor(0);
+        this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
+            .setScrollFactor(0);
 
-        this.bindButton(this.up);
-        this.bindButton(this.down);
-        this.bindButton(this.left);
-        this.bindButton(this.right);
+        this.joyStick = this.add.circle(this.baseX, this.baseY, 30, 0xffffff, 0.7)
+            .setInteractive()
+            .setScrollFactor(0);
 
+        this.joyActive = false;
+        this.joyX = 0;
+        this.joyY = 0;
+
+        this.joyStick.on('pointerdown', () => {
+            this.joyActive = true;
+        });
+
+        this.input.on('pointerup', () => {
+            this.joyActive = false;
+            this.joyStick.x = this.baseX;
+            this.joyStick.y = this.baseY;
+            this.joyX = 0;
+            this.joyY = 0;
+        });
+
+        this.input.on('pointermove', (pointer) => {
+            if (!this.joyActive) return;
+
+            let dx = pointer.x - this.baseX;
+            let dy = pointer.y - this.baseY;
+
+            let distance = Math.sqrt(dx * dx + dy * dy);
+            let max = 50;
+
+            if (distance > max) {
+                dx = dx / distance * max;
+                dy = dy / distance * max;
+            }
+
+            this.joyStick.x = this.baseX + dx;
+            this.joyStick.y = this.baseY + dy;
+
+            this.joyX = dx / max;
+            this.joyY = dy / max;
+        });
     }
 
-update() {
-    let speed = 1.5;
-    let isMoving = false;
+    update() {
+        let speed = 3;
 
-    if (this.up.isDown) this.player.y -= speed;
-    if (this.down.isDown) this.player.y += speed;
+        this.player.x += this.joyX * speed;
+        this.player.y += this.joyY * speed;
 
-    if (this.left.isDown) {
-        this.player.x -= speed;
-        this.player.anims.play('walk_left', true);
-        isMoving = true;
-    }
+        if (this.joyX < -0.2) {
+            this.player.anims.play('walk_left', true);
+        } else if (this.joyX > 0.2) {
+            this.player.anims.play('walk_right', true);
+        } else {
+            this.player.anims.play('idle', true);
+        }
 
-    if (this.right.isDown) {
-         this.player.x += speed;
-         this.player.anims.play('walk_right', true);
-         isMoving = true;
-
-    }
-
-    if (!isMoving) {
-        this.player.anims.play('idle', true);
-    }
-
-    if (this.up.isDown || this.down.isDown || this.left.isDown || this.right.isDown) {
-        this.player.y += Math.sin(Date.now() / 100) * 0.3;
-    }
-
-    if (!this.input.manager.pointers[0].isDown) {
-        this.up.isDown = false;
-        this.down.isDown = false;
-        this.left.isDown = false;
-        this.right.isDown = false;
+        if (this.joyX !== 0 || this.joyY !== 0) {
+            this.player.y += Math.sin(Date.now() / 100) * 0.3;
+        }
     }
 }
-
-   bindButton(button) {
-    button.isDown = false;
-
-    button.on('pointerdown', () => button.isDown = true);
-
-    button.on('pointerover', () => {
-        if (this.input.activePointer.isDown) {
-            button.isDown = true;
-        }
-    });
-
-    button.on('pointerup', () => button.isDown = false);
-    button.on('pointerout', () => button.isDown = false);
-    button.on('pointerupoutside', () => button.isDown = false);
-}}
 
 const config = {
     type: Phaser.AUTO,
