@@ -4,28 +4,23 @@ class StartScene extends Phaser.Scene {
     }
 
     create() {
-       this.add.text(
-       this.scale.width / 2,
-       this.scale.height / 2 - 50,
-       '換日線',
-    {
-        fontSize: '40px',
-        fill: '#fff'
-    }
-).setOrigin(0.5);
+        this.add.text(
+            this.scale.width / 2,
+            this.scale.height / 2 - 50,
+            '換日線',
+            { fontSize: '40px', fill: '#fff' }
+        ).setOrigin(0.5);
 
         let startText = this.add.text(
-    this.scale.width / 2,
-    this.scale.height / 2 + 50,
-    '點擊開始',
-    {
-        fontSize: '30px',
-        fill: '#a5e8ff'
-    }
-)
-    .setOrigin(0.5)
-    .setInteractive();
-     startText.on('pointerdown', () => {
+            this.scale.width / 2,
+            this.scale.height / 2 + 50,
+            '點擊開始',
+            { fontSize: '30px', fill: '#a5e8ff' }
+        )
+        .setOrigin(0.5)
+        .setInteractive();
+
+        startText.on('pointerdown', () => {
             this.scene.start('GameScene');
         });
     }
@@ -45,19 +40,35 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    create() {
-        this.input.addPointer(3);
+create() {
+    this.input.addPointer(3);
 
-        let map = this.add.image(0, 0, 'map').setOrigin(0, 0);
-            map.displayWidth = this.scale.width;
-            map.displayHeight = this.scale.height;
+    // 先建立地圖
+    this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
 
-        this.player = this.add.sprite(
-        this.scale.width / 2,
-        this.scale.height / 2,
+    // 再算縮放
+    let scaleX = this.scale.width / this.map.width;
+    let scaleY = this.scale.height / this.map.height;
+    let scale = Math.max(scaleX, scaleY)*1.5;
+    
+    this.map.setScale(scale);
+
+    // 世界邊界
+    let worldWidth = this.map.width * scale;
+    let worldHeight = this.map.height * scale;
+
+    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+
+    // 玩家
+    this.player = this.add.sprite(
+        worldWidth / 2,
+        worldHeight,
         'player'
-        ).setScale(0.7);
+    )
+    .setOrigin(0.5, 1)
+    .setScale(0.7);
 
+        // 動畫
         this.anims.create({
             key: 'idle',
             frames: [
@@ -76,7 +87,7 @@ class GameScene extends Phaser.Scene {
                 { key: 'player', frame: 4 },
                 { key: 'player', frame: 3 }
             ],
-            frameRate: 4,
+            frameRate: 2,
             repeat: -1
         });
 
@@ -88,15 +99,16 @@ class GameScene extends Phaser.Scene {
                 { key: 'player', frame: 7 },
                 { key: 'player', frame: 6 }
             ],
-            frameRate: 4,
+            frameRate: 2,
             repeat: -1
         });
 
         this.player.anims.play('idle');
 
+        // 鏡頭跟隨
         this.cameras.main.startFollow(this.player);
-        this.cameras.main.setBounds(0, 0, this.scale.width, this.scale.height);
 
+        // 搖桿
         this.baseX = 120;
         this.baseY = this.scale.height - 120;
 
@@ -117,8 +129,7 @@ class GameScene extends Phaser.Scene {
 
         this.input.on('pointerup', () => {
             this.joyActive = false;
-            this.joyStick.x = this.baseX;
-            this.joyStick.y = this.baseY;
+            this.joyStick.setPosition(this.baseX, this.baseY);
             this.joyX = 0;
             this.joyY = 0;
         });
@@ -130,27 +141,49 @@ class GameScene extends Phaser.Scene {
             let dy = pointer.y - this.baseY;
 
             let distance = Math.sqrt(dx * dx + dy * dy);
-            let max = 50;
+            let max = 60;
 
             if (distance > max) {
                 dx = dx / distance * max;
                 dy = dy / distance * max;
             }
 
-            this.joyStick.x = this.baseX + dx;
-            this.joyStick.y = this.baseY + dy;
+            this.joyStick.setPosition(this.baseX + dx, this.baseY + dy);
 
             this.joyX = dx / max;
             this.joyY = dy / max;
         });
+
+        // 旋轉時更新搖桿位置
+        this.scale.on('resize', (gameSize) => {
+            const { height } = gameSize;
+
+            this.baseY = height - 120;
+
+            this.joyBase.setPosition(this.baseX, this.baseY);
+            this.joyStick.setPosition(this.baseX, this.baseY);
+        });
     }
 
     update() {
-        let speed = 3;
+    let speed = 3;
 
-        this.player.x += this.joyX * speed;
-        this.player.y += this.joyY * speed;
+    this.player.x += this.joyX * speed;
+    this.player.y += this.joyY * speed;
 
+    // 限制角色不能走出地圖
+    this.player.x = Phaser.Math.Clamp(
+        this.player.x,
+        0,
+        this.map.width * this.map.scaleX
+    );
+
+    this.player.y = Phaser.Math.Clamp(
+        this.player.y,
+        0,
+        this.map.height * this.map.scaleY
+    );
+        // 動畫
         if (this.joyX < -0.2) {
             this.player.anims.play('walk_left', true);
         } else if (this.joyX > 0.2) {
@@ -159,12 +192,14 @@ class GameScene extends Phaser.Scene {
             this.player.anims.play('idle', true);
         }
 
+        // 微晃動
         if (this.joyX !== 0 || this.joyY !== 0) {
             this.player.y += Math.sin(Date.now() / 100) * 0.3;
         }
     }
 }
 
+// 遊戲設定
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
