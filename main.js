@@ -31,7 +31,12 @@ class StartScene extends Phaser.Scene {
             this.titleText.setPosition(width / 2, height / 2 - 50);
             this.startText.setPosition(width / 2, height / 2 + 50);
         });
-    }
+
+        // ⭐ 強制刷新尺寸（解決 iPhone 工具列問題）
+        setTimeout(() => {
+            this.scale.resize(window.innerWidth, window.innerHeight);
+        }, 200);
+            }
 }
 
 class GameScene extends Phaser.Scene {
@@ -103,7 +108,10 @@ class GameScene extends Phaser.Scene {
 
         // 🎮 搖桿
         this.baseX = 120;
-        this.baseY = this.scale.height - 120;
+        let safeBottom = parseInt(getComputedStyle(document.documentElement)
+        .getPropertyValue('padding-bottom')) || 0;
+
+        this.baseY = this.scale.height - 120 - safeBottom;
 
         this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
             .setScrollFactor(0);
@@ -149,10 +157,20 @@ class GameScene extends Phaser.Scene {
         });
 
         // 旋轉時調整搖桿
+
+        function getSafeBottom() {
+        return parseInt(
+        getComputedStyle(document.documentElement)
+        .getPropertyValue('padding-bottom')
+        ) || 0;
+}
         this.scale.on('resize', (gameSize) => {
             const { height } = gameSize;
 
-            this.baseY = height - 120;
+            let safeBottom = parseInt(getComputedStyle(document.documentElement)
+                .getPropertyValue('padding-bottom')) || 0;
+
+            this.baseY = height - 120 - safeBottom;
 
             this.joyBase.setPosition(this.baseX, this.baseY);
             this.joyStick.setPosition(this.baseX, this.baseY);
@@ -160,7 +178,7 @@ class GameScene extends Phaser.Scene {
     }
 
     update() {
-        let speed = 10; // ⭐ 提高速度（避免看起來沒動）
+        let speed = 5; 
 
         this.player.x += this.joyX * speed;
         this.player.y += this.joyY * speed;
