@@ -4,14 +4,15 @@ class StartScene extends Phaser.Scene {
     }
 
     create() {
-        this.add.text(
+        // 把文字存起來（很重要）
+        this.titleText = this.add.text(
             this.scale.width / 2,
             this.scale.height / 2 - 50,
             '換日線',
             { fontSize: '40px', fill: '#fff' }
         ).setOrigin(0.5);
 
-        let startText = this.add.text(
+        this.startText = this.add.text(
             this.scale.width / 2,
             this.scale.height / 2 + 50,
             '點擊開始',
@@ -20,8 +21,16 @@ class StartScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setInteractive();
 
-        startText.on('pointerdown', () => {
+        this.startText.on('pointerdown', () => {
             this.scene.start('GameScene');
+        });
+
+        // 加這段 → 解決橫直切換問題
+        this.scale.on('resize', (gameSize) => {
+            const { width, height } = gameSize;
+
+            this.titleText.setPosition(width / 2, height / 2 - 50);
+            this.startText.setPosition(width / 2, height / 2 + 50);
         });
     }
 }
@@ -38,6 +47,8 @@ class GameScene extends Phaser.Scene {
             frameWidth: 256,
             frameHeight: 256
         });
+
+        this.load.audio('bgm', 'assets/bgm.mp3');
     }
 
 create() {
@@ -163,6 +174,13 @@ create() {
             this.joyBase.setPosition(this.baseX, this.baseY);
             this.joyStick.setPosition(this.baseX, this.baseY);
         });
+
+        this.bgm = this.sound.add('bgm', {
+        loop: true,   // 重複播放
+        volume: 0.5   // 音量（0~1）
+});
+
+this.bgm.play();
     }
 
     update() {
