@@ -1,4 +1,4 @@
- class StartScene extends Phaser.Scene {
+class StartScene extends Phaser.Scene {
     constructor() {
         super('StartScene');
     }
@@ -117,9 +117,8 @@ class GameScene extends Phaser.Scene {
         this.joyX = 0;
         this.joyY = 0;
 
-        // ⭐ 改成全域控制（解決 Netlify 不能動）
-        this.input.on('pointerdown', () => {
-            this.joyActive = true;
+        this.joyStick.on('pointerdown', () => {
+         this.joyActive = true;
         });
 
         this.input.on('pointerup', () => {
@@ -190,15 +189,13 @@ class GameScene extends Phaser.Scene {
     }
 }
 
-// ⚙️ 設定
 const config = {
     type: Phaser.AUTO,
-
     width: 960,
     height: 540,
 
     scale: {
-        mode: Phaser.Scale.FIT, // ⭐ 關鍵
+        mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
 
@@ -206,8 +203,3 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
-
-// ⭐ 強制修正手機尺寸
-window.addEventListener('resize', () => {
-    game.scale.resize(window.innerWidth, window.innerHeight);
-});
