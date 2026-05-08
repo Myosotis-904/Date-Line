@@ -17,12 +17,30 @@ html, body {
     background: black;
 }
 
+/* 遊戲畫面 */
 canvas {
     display: block;
-    width: 100vw;
-    height: 100vh;
-    touch-action: none;
-  }
+}
+
+/* 橫式提示畫面 */
+#rotateHint {
+    position: fixed;
+    inset: 0;
+    background: black;
+    color: white;
+    font-size: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+}
+
+/* 👉 橫式時隱藏提示 */
+@media (orientation: landscape) {
+    #rotateHint {
+        display: none;
+    }
+}
 </style>
 
 </head>
@@ -36,6 +54,7 @@ window.addEventListener('load', () => {
     }, 100);
 });
 </script>
+<div id="rotateHint">請將手機橫向遊玩</div>
 </body>
 </html>
 
