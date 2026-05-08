@@ -1,4 +1,4 @@
- StartScene extends Phaser.Scene {
+ class StartScene extends Phaser.Scene {
     constructor() {
         super('StartScene');
     }
@@ -24,26 +24,14 @@
             this.scene.start('GameScene');
         });
 
-        // 旋轉自適應
+        // ⭐ 畫面自適應
         this.scale.on('resize', (gameSize) => {
             const { width, height } = gameSize;
 
             this.titleText.setPosition(width / 2, height / 2 - 50);
             this.startText.setPosition(width / 2, height / 2 + 50);
         });
-
-        // ⭐ 強制刷新尺寸（解決 iPhone 工具列問題）
-        setTimeout(() => {
-            this.scale.resize(window.innerWidth, window.innerHeight);
-        }, 200);
-
-            this.scale.resize(window.innerWidth, window.innerHeight);
-
-            setTimeout(() => {
-            this.scale.refresh();
-            }, 100);
     }
-        
 }
 
 class GameScene extends Phaser.Scene {
@@ -61,23 +49,24 @@ class GameScene extends Phaser.Scene {
 
     create() {
         this.input.addPointer(3);
-class
-        // 地圖
+
+        // 🌍 地圖
         this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
 
         let scaleX = this.scale.width / this.map.width;
         let scaleY = this.scale.height / this.map.height;
 
-        // ⭐ 地圖比畫面大
+        // ⭐ 地圖比畫面大，但不變形
         let scale = Math.max(scaleX, scaleY) * 1.5;
         this.map.setScale(scale);
 
         let worldWidth = this.map.width * scale;
         let worldHeight = this.map.height * scale;
 
+        // 📷 世界邊界
         this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
 
-        // 玩家（底部中央）
+        // 🧍 玩家（底部中央）
         this.player = this.add.sprite(
             worldWidth / 2,
             worldHeight,
@@ -86,10 +75,10 @@ class
         .setOrigin(0.5, 1)
         .setScale(0.7);
 
-        // 動畫
+        // 🎞 動畫
         this.anims.create({
             key: 'idle',
-            frames: [{ key: 'player', frame: 0 }, { key: 'player', frame: 1 }],
+            frames: [0,1].map(f => ({ key:'player', frame:f })),
             frameRate: 2,
             repeat: -1
         });
@@ -110,15 +99,12 @@ class
 
         this.player.anims.play('idle');
 
-        // 鏡頭跟隨
+        // 📷 鏡頭跟隨
         this.cameras.main.startFollow(this.player);
 
         // 🎮 搖桿
         this.baseX = 120;
-        let safeBottom = parseInt(getComputedStyle(document.documentElement)
-        .getPropertyValue('padding-bottom')) || 0;
-
-        this.baseY = this.scale.height - 120 - safeBottom;
+        this.baseY = this.scale.height - 120;
 
         this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
             .setScrollFactor(0);
@@ -131,7 +117,7 @@ class
         this.joyX = 0;
         this.joyY = 0;
 
-        // ⭐ 改用全域 pointer（超穩）
+        // ⭐ 改成全域控制（解決 Netlify 不能動）
         this.input.on('pointerdown', () => {
             this.joyActive = true;
         });
@@ -163,21 +149,11 @@ class
             this.joyY = dy / max;
         });
 
-        // 旋轉時調整搖桿
-
-        function getSafeBottom() {
-        return parseInt(
-        getComputedStyle(document.documentElement)
-        .getPropertyValue('padding-bottom')
-        ) || 0;
-}
+        // 📱 旋轉時修正
         this.scale.on('resize', (gameSize) => {
             const { height } = gameSize;
 
-            let safeBottom = parseInt(getComputedStyle(document.documentElement)
-                .getPropertyValue('padding-bottom')) || 0;
-
-            this.baseY = height - 120 - safeBottom;
+            this.baseY = height - 120;
 
             this.joyBase.setPosition(this.baseX, this.baseY);
             this.joyStick.setPosition(this.baseX, this.baseY);
@@ -185,12 +161,12 @@ class
     }
 
     update() {
-        let speed = 5; 
+        let speed = 5;
 
         this.player.x += this.joyX * speed;
         this.player.y += this.joyY * speed;
 
-        // 限制範圍
+        // 🚫 邊界限制
         this.player.x = Phaser.Math.Clamp(
             this.player.x,
             0,
@@ -203,7 +179,7 @@ class
             this.map.height * this.map.scaleY
         );
 
-        // 動畫
+        // 🎞 動畫
         if (this.joyX < -0.2) {
             this.player.anims.play('walk_left', true);
         } else if (this.joyX > 0.2) {
@@ -214,26 +190,24 @@ class
     }
 }
 
+// ⚙️ 設定
 const config = {
     type: Phaser.AUTO,
+
     width: 960,
     height: 540,
 
     scale: {
-        mode: Phaser.Scale.FIT,
+        mode: Phaser.Scale.FIT, // ⭐ 關鍵
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
 
     scene: [StartScene, GameScene]
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
 
-window.addEventListener('resize', resizeGame);
-window.addEventListener('load', resizeGame);
-
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-    }, 200);
+// ⭐ 強制修正手機尺寸
+window.addEventListener('resize', () => {
+    game.scale.resize(window.innerWidth, window.innerHeight);
 });
