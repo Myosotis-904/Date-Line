@@ -86,14 +86,14 @@ class GameScene extends Phaser.Scene {
         this.anims.create({
             key: 'walk_left',
             frames: [2,3,4,3].map(f => ({ key:'player', frame:f })),
-            frameRate: 6,
+            frameRate: 3,
             repeat: -1
         });
 
         this.anims.create({
             key: 'walk_right',
             frames: [5,6,7,6].map(f => ({ key:'player', frame:f })),
-            frameRate: 6,
+            frameRate: 3,
             repeat: -1
         });
 
