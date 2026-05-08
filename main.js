@@ -36,6 +36,8 @@ class StartScene extends Phaser.Scene {
         setTimeout(() => {
             this.scale.resize(window.innerWidth, window.innerHeight);
         }, 200);
+
+            this.scale.resize(window.innerWidth, window.innerHeight);
             }
 }
 
