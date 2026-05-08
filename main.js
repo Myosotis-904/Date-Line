@@ -211,12 +211,15 @@ class GameScene extends Phaser.Scene {
 
 const config = {
     type: Phaser.AUTO,
-    width: window.innerWidth,
-    height: window.innerHeight,
+
+    width: 960,
+    height: 540,
+
     scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
     },
+
     scene: [StartScene, GameScene]
 };
     window.addEventListener('resize', () => {
@@ -224,3 +227,14 @@ const config = {
     })
 
 new Phaser.Game(config);
+
+function resizeGame() {
+    if (window.innerWidth > window.innerHeight) {
+        game.scale.resize(window.innerWidth, window.innerHeight);
+    } else {
+        game.scale.resize(540, 960);
+    }
+}
+
+window.addEventListener('resize', resizeGame);
+window.addEventListener('load', resizeGame);
