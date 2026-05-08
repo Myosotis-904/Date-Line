@@ -1,4 +1,4 @@
-class StartScene extends Phaser.Scene {
+ StartScene extends Phaser.Scene {
     constructor() {
         super('StartScene');
     }
@@ -38,7 +38,12 @@ class StartScene extends Phaser.Scene {
         }, 200);
 
             this.scale.resize(window.innerWidth, window.innerHeight);
-            }
+
+            setTimeout(() => {
+            this.scale.refresh();
+            }, 100);
+    }
+        
 }
 
 class GameScene extends Phaser.Scene {
@@ -56,7 +61,7 @@ class GameScene extends Phaser.Scene {
 
     create() {
         this.input.addPointer(3);
-
+class
         // 地圖
         this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
 
@@ -226,3 +231,9 @@ new Phaser.Game(config);
 
 window.addEventListener('resize', resizeGame);
 window.addEventListener('load', resizeGame);
+
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+    }, 200);
+});
