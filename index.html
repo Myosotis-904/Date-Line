@@ -17,50 +17,15 @@ html, body {
     background: black;
 }
 
-/* 遊戲畫面 */
+/* ❗關鍵：不要用100vw / 100vh */
 canvas {
     display: block;
-}
-
-/* 橫式提示畫面 */
-#rotateHint {
-    position: fixed;
-    inset: 0;
-    background: black;
-    color: white;
-    font-size: 24px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 999;
-}
-
-/* 👉 橫式時隱藏提示 */
-@media (orientation: landscape) {
-    #rotateHint {
-        display: none;
-    }
+    margin: 0 auto;
 }
 </style>
-
 </head>
 
 <body>
 <script src="main.js"></script>
-<script>
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        window.scrollTo(0, 1);
-    }, 100);
-});
-</script>
-<div id="rotateHint">請將手機橫向遊玩</div>
-</body>
-</html>
-
-</head>
-
-<body>
-  <script src="main.js"></script>
 </body>
 </html>
