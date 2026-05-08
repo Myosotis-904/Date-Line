@@ -211,7 +211,6 @@ class GameScene extends Phaser.Scene {
 
 const config = {
     type: Phaser.AUTO,
-
     width: 960,
     height: 540,
 
@@ -222,19 +221,8 @@ const config = {
 
     scene: [StartScene, GameScene]
 };
-    window.addEventListener('resize', () => {
-    game.scale.resize(window.innerWidth, window.innerHeight);
-    })
 
 new Phaser.Game(config);
-
-function resizeGame() {
-    if (window.innerWidth > window.innerHeight) {
-        game.scale.resize(window.innerWidth, window.innerHeight);
-    } else {
-        game.scale.resize(540, 960);
-    }
-}
 
 window.addEventListener('resize', resizeGame);
 window.addEventListener('load', resizeGame);
