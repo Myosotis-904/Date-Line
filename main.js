@@ -219,5 +219,8 @@ const config = {
     },
     scene: [StartScene, GameScene]
 };
+    window.addEventListener('resize', () => {
+    game.scale.resize(window.innerWidth, window.innerHeight);
+    })
 
 new Phaser.Game(config);
