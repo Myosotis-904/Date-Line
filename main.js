@@ -4,7 +4,6 @@ class StartScene extends Phaser.Scene {
     }
 
     create() {
-        // 把文字存起來（很重要）
         this.titleText = this.add.text(
             this.scale.width / 2,
             this.scale.height / 2 - 50,
@@ -25,7 +24,7 @@ class StartScene extends Phaser.Scene {
             this.scene.start('GameScene');
         });
 
-        // 加這段 → 解決橫直切換問題
+        // 旋轉自適應
         this.scale.on('resize', (gameSize) => {
             const { width, height } = gameSize;
 
@@ -42,75 +41,58 @@ class GameScene extends Phaser.Scene {
 
     preload() {
         this.load.image('map', 'assets/map.png');
-
         this.load.spritesheet('player', 'assets/player.png', {
             frameWidth: 256,
             frameHeight: 256
         });
-
-        this.load.audio('bgm', 'assets/bgm.mp3');
     }
 
-create() {
-    this.input.addPointer(3);
+    create() {
+        this.input.addPointer(3);
 
-    // 先建立地圖
-    this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
+        // 地圖
+        this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
 
-    // 再算縮放
-    let scaleX = this.scale.width / this.map.width;
-    let scaleY = this.scale.height / this.map.height;
-    let scale = Math.max(scaleX, scaleY)*1.5;
-    
-    this.map.setScale(scale);
+        let scaleX = this.scale.width / this.map.width;
+        let scaleY = this.scale.height / this.map.height;
 
-    // 世界邊界
-    let worldWidth = this.map.width * scale;
-    let worldHeight = this.map.height * scale;
+        // ⭐ 地圖比畫面大
+        let scale = Math.max(scaleX, scaleY) * 1.5;
+        this.map.setScale(scale);
 
-    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+        let worldWidth = this.map.width * scale;
+        let worldHeight = this.map.height * scale;
 
-    // 玩家
-    this.player = this.add.sprite(
-        worldWidth / 2,
-        worldHeight,
-        'player'
-    )
-    .setOrigin(0.5, 1)
-    .setScale(0.7);
+        this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+
+        // 玩家（底部中央）
+        this.player = this.add.sprite(
+            worldWidth / 2,
+            worldHeight,
+            'player'
+        )
+        .setOrigin(0.5, 1)
+        .setScale(0.7);
 
         // 動畫
         this.anims.create({
             key: 'idle',
-            frames: [
-                { key: 'player', frame: 0 },
-                { key: 'player', frame: 1 }
-            ],
+            frames: [{ key: 'player', frame: 0 }, { key: 'player', frame: 1 }],
             frameRate: 2,
             repeat: -1
         });
 
         this.anims.create({
             key: 'walk_left',
-            frames: [
-                { key: 'player', frame: 2 },
-                { key: 'player', frame: 3 },
-                { key: 'player', frame: 4 },
-                { key: 'player', frame: 3 }
-            ],
-            frameRate: 2,
+            frames: [2,3,4,3].map(f => ({ key:'player', frame:f })),
+            frameRate: 6,
             repeat: -1
         });
 
         this.anims.create({
             key: 'walk_right',
-            frames: [
-                { key: 'player', frame: 5 },
-                { key: 'player', frame: 6 },
-                { key: 'player', frame: 7 },
-                { key: 'player', frame: 6 }
-            ],
-            frameRate: 2,
+            frames: [5,6,7,6].map(f => ({ key:'player', frame:f })),
+            frameRate: 6,
             repeat: -1
         });
 
@@ -119,7 +101,7 @@ create() {
         // 鏡頭跟隨
         this.cameras.main.startFollow(this.player);
 
-        // 搖桿
+        // 🎮 搖桿
         this.baseX = 120;
         this.baseY = this.scale.height - 120;
 
@@ -134,7 +116,8 @@ create() {
         this.joyX = 0;
         this.joyY = 0;
 
-        this.joyStick.on('pointerdown', () => {
+        // ⭐ 改用全域 pointer（超穩）
+        this.input.on('pointerdown', () => {
             this.joyActive = true;
         });
 
@@ -151,7 +134,7 @@ create() {
             let dx = pointer.x - this.baseX;
             let dy = pointer.y - this.baseY;
 
-            let distance = Math.sqrt(dx * dx + dy * dy);
+            let distance = Math.sqrt(dx*dx + dy*dy);
             let max = 60;
 
             if (distance > max) {
@@ -165,7 +148,7 @@ create() {
             this.joyY = dy / max;
         });
 
-        // 旋轉時更新搖桿位置
+        // 旋轉時調整搖桿
         this.scale.on('resize', (gameSize) => {
             const { height } = gameSize;
 
@@ -174,33 +157,27 @@ create() {
             this.joyBase.setPosition(this.baseX, this.baseY);
             this.joyStick.setPosition(this.baseX, this.baseY);
         });
-
-        this.bgm = this.sound.add('bgm', {
-        loop: true,   // 重複播放
-        volume: 0.5   // 音量（0~1）
-});
-
-this.bgm.play();
     }
 
     update() {
-    let speed = 3;
+        let speed = 10; // ⭐ 提高速度（避免看起來沒動）
 
-    this.player.x += this.joyX * speed;
-    this.player.y += this.joyY * speed;
+        this.player.x += this.joyX * speed;
+        this.player.y += this.joyY * speed;
 
-    // 限制角色不能走出地圖
-    this.player.x = Phaser.Math.Clamp(
-        this.player.x,
-        0,
-        this.map.width * this.map.scaleX
-    );
+        // 限制範圍
+        this.player.x = Phaser.Math.Clamp(
+            this.player.x,
+            0,
+            this.map.width * this.map.scaleX
+        );
 
-    this.player.y = Phaser.Math.Clamp(
-        this.player.y,
-        0,
-        this.map.height * this.map.scaleY
-    );
+        this.player.y = Phaser.Math.Clamp(
+            this.player.y,
+            0,
+            this.map.height * this.map.scaleY
+        );
+
         // 動畫
         if (this.joyX < -0.2) {
             this.player.anims.play('walk_left', true);
@@ -209,26 +186,18 @@ this.bgm.play();
         } else {
             this.player.anims.play('idle', true);
         }
-
-        // 微晃動
-        if (this.joyX !== 0 || this.joyY !== 0) {
-            this.player.y += Math.sin(Date.now() / 100) * 0.3;
-        }
     }
 }
 
-// 遊戲設定
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
     height: window.innerHeight,
-
     scale: {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-
     scene: [StartScene, GameScene]
 };
 
-const game = new Phaser.Game(config);
+new Phaser.Game(config);
