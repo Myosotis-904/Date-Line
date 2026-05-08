@@ -14,26 +14,15 @@ html, body {
     margin: 0;
     padding: 0;
     overflow: hidden;
-
-    height: 100dvh;
-    width: 100vw;
-
     background: black;
 }
 
-/* ⭐ 把安全區用在 canvas，而不是 body */
 canvas {
     display: block;
+    width: 100vw;
+    height: 100vh;
     touch-action: none;
-
-    position: absolute;
-
-    top: env(safe-area-inset-top);
-    left: env(safe-area-inset-left);
-
-    width: calc(100% - env(safe-area-inset-left) - env(safe-area-inset-right));
-    height: calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-}
+  }
 </style>
 
 </head>
