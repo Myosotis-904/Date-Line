@@ -24,7 +24,6 @@ class StartScene extends Phaser.Scene {
             this.scene.start('GameScene');
         });
 
-        // ⭐ 畫面自適應
         this.scale.on('resize', (gameSize) => {
             const { width, height } = gameSize;
 
@@ -50,23 +49,22 @@ class GameScene extends Phaser.Scene {
     create() {
         this.input.addPointer(3);
 
-        // 🌍 地圖
+        // 地圖
         this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
 
         let scaleX = this.scale.width / this.map.width;
         let scaleY = this.scale.height / this.map.height;
 
-        // ⭐ 地圖比畫面大，但不變形
         let scale = Math.max(scaleX, scaleY) * 1.5;
         this.map.setScale(scale);
 
         let worldWidth = this.map.width * scale;
         let worldHeight = this.map.height * scale;
 
-        // 📷 世界邊界
+        // 世界邊界
         this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
 
-        // 🧍 玩家（底部中央）
+        // 玩家（底部中央）
         this.player = this.add.sprite(
             worldWidth / 2,
             worldHeight,
@@ -75,7 +73,7 @@ class GameScene extends Phaser.Scene {
         .setOrigin(0.5, 1)
         .setScale(0.7);
 
-        // 🎞 動畫
+        // 動畫
         this.anims.create({
             key: 'idle',
             frames: [0,1].map(f => ({ key:'player', frame:f })),
@@ -99,10 +97,10 @@ class GameScene extends Phaser.Scene {
 
         this.player.anims.play('idle');
 
-        // 📷 鏡頭跟隨
+        // 鏡頭跟隨
         this.cameras.main.startFollow(this.player);
 
-        // 🎮 搖桿
+        // 搖桿
         this.baseX = 120;
         this.baseY = this.scale.height - 120;
 
@@ -148,7 +146,7 @@ class GameScene extends Phaser.Scene {
             this.joyY = dy / max;
         });
 
-        // 📱 旋轉時修正
+        // 旋轉時修正
         this.scale.on('resize', (gameSize) => {
             const { height } = gameSize;
 
@@ -165,7 +163,7 @@ class GameScene extends Phaser.Scene {
         this.player.x += this.joyX * speed;
         this.player.y += this.joyY * speed;
 
-        // 🚫 邊界限制
+        // 邊界限制
         this.player.x = Phaser.Math.Clamp(
             this.player.x,
             0,
@@ -178,7 +176,7 @@ class GameScene extends Phaser.Scene {
             this.map.height * this.map.scaleY
         );
 
-        // 🎞 動畫
+        // 動畫
         if (this.joyX < -0.2) {
             this.player.anims.play('walk_left', true);
         } else if (this.joyX > 0.2) {
