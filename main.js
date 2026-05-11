@@ -56,7 +56,7 @@ class GameScene extends Phaser.Scene {
         // 舞台位置（這裡可以改座標）
         this.stage = this.add.image(600, 300, 'stage')
        .setOrigin(0.5, 1),
-       .setScale(scale);
+       .setScale(3);
 
         let scaleX = this.scale.width / this.map.width;
         let scaleY = this.scale.height / this.map.height;
