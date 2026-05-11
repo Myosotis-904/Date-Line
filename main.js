@@ -44,6 +44,7 @@ class GameScene extends Phaser.Scene {
             frameWidth: 256,
             frameHeight: 256
         });
+        this.load.image('stage', 'assets/stage.png');
     }
 
     create() {
@@ -51,6 +52,10 @@ class GameScene extends Phaser.Scene {
 
         // 地圖
         this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
+
+        // 舞台位置（這裡可以改座標）
+        this.stage = this.add.sprite(1200, 900, 'stage')
+       .setOrigin(0.5, 1);
 
         let scaleX = this.scale.width / this.map.width;
         let scaleY = this.scale.height / this.map.height;
@@ -154,7 +159,25 @@ class GameScene extends Phaser.Scene {
 
             this.joyBase.setPosition(this.baseX, this.baseY);
             this.joyStick.setPosition(this.baseX, this.baseY);
+
+            this.stage = this.add.image(1000, 800, 'stage');
+            
         });
+
+        this.actionButton = this.add.text(
+        this.scale.width - 120,
+        this.scale.height - 120,
+        '進入舞台',
+        { fontSize: '24px', fill: '#fff', backgroundColor: '#000' }
+        )
+        .setScrollFactor(0)
+        .setInteractive()
+        .setVisible(false);
+
+        this.actionButton.on('pointerdown', () => {
+        this.scene.start('MusicScene');
+});
+        
     }
 
     update() {
@@ -184,6 +207,38 @@ class GameScene extends Phaser.Scene {
         } else {
             this.player.anims.play('idle', true);
         }
+
+        // 判斷玩家是否靠近舞台
+        let distance = Phaser.Math.Distance.Between(
+            this.player.x,
+            this.player.y,
+            this.stage.x,
+            this.stage.y
+        );
+
+        if (distance < 200) {
+            this.actionButton.setVisible(true);
+        } else {
+            this.actionButton.setVisible(false);
+        }
+    }
+}
+
+class MusicScene extends Phaser.Scene {
+    constructor() {
+        super('MusicScene');
+    }
+
+    create() {
+        this.add.text(400, 200, '音樂遊戲', {
+            fontSize: '40px',
+            fill: '#fff'
+        });
+
+        // 點擊返回
+        this.input.on('pointerdown', () => {
+            this.scene.start('GameScene');
+        });
     }
 }
 
@@ -197,7 +252,7 @@ const config = {
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
 
-    scene: [StartScene, GameScene]
+    scene: [StartScene, GameScene, MusicScene]
 };
 
 const game = new Phaser.Game(config);
