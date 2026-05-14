@@ -42,6 +42,7 @@ class GameScene extends Phaser.Scene {
         this.load.image('stage', './assets/stage.png');
         this.load.image('tree', './assets/tree.png');
         this.load.image('sign', './assets/sign.png');
+
         this.load.spritesheet('player', './assets/player.png', {
             frameWidth: 256,
             frameHeight: 256
@@ -66,7 +67,7 @@ class GameScene extends Phaser.Scene {
 
         this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
 
-        // ===== 物件（矩形碰撞）=====
+        // ===== 物件（腳底碰撞🔥）=====
         this.objects = [];
 
         const addObject = (x, y, key, scale, w, h) => {
@@ -75,17 +76,18 @@ class GameScene extends Phaser.Scene {
                 .setScale(scale);
 
             this.objects.push({
-                sprite: sprite,
+                sprite,
                 width: w,
                 height: h
             });
         };
 
-        // 👉 可調整碰撞大小（重點）
-        addObject(400, 1200, 'stage', 2.7, 700, 600);
-        addObject(700, 2160, 'tree', 0.7, 2000, 80);
-        addObject(700,2150, 'sign', 0.8, 300, 150);
+        // 👉 只抓底部（透明可穿關鍵🔥）
+        addObject(400, 1200, 'stage', 2.7, 400, 180);
+        addObject(700, 2165, 'tree', 0.7, 2000, 120);
+        addObject(700, 2120, 'sign', 0.8, 120, 100);
 
+       
         // ===== 安全出生點 =====
         let spawnX = worldWidth / 2;
         let spawnY = worldHeight - 50;
@@ -110,7 +112,7 @@ class GameScene extends Phaser.Scene {
             .setOrigin(0.5, 1)
             .setScale(0.7);
 
-        // ===== 影子（貼腳）=====
+        // ===== 影子 =====
         this.shadow = this.add.ellipse(
             spawnX,
             spawnY + 2,
@@ -119,6 +121,13 @@ class GameScene extends Phaser.Scene {
             0x000000,
             0.25
         );
+
+        // ===== 安全區（出生不卡🔥）=====
+        this.safeZone = {
+            x: spawnX,
+            y: spawnY,
+            radius: 120
+        };
 
         // ===== 動畫 =====
         this.anims.create({
@@ -231,23 +240,34 @@ class GameScene extends Phaser.Scene {
             this.map.height * this.map.scaleY
         );
 
-        // ===== 矩形碰撞 =====
+        //===== 安全區判定 =====
+        let inSafeZone =
+            Phaser.Math.Distance.Between(
+                this.player.x,
+                this.player.y,
+                this.safeZone.x,
+                this.safeZone.y
+            ) < this.safeZone.radius;
+
+        // ===== 碰撞（不卡滑動）=====
         let nearStage = false;
 
         for (let obj of this.objects) {
+
             let inside =
                 this.player.x > obj.sprite.x - obj.width / 2 &&
                 this.player.x < obj.sprite.x + obj.width / 2 &&
                 this.player.y > obj.sprite.y - obj.height &&
                 this.player.y < obj.sprite.y;
 
-            if (inside) {
+            if (inside && !inSafeZone) {
+
+                //  分軸（不卡關鍵）
                 this.player.x = prevX;
                 this.player.y = prevY;
-                break;
             }
 
-            // 第一個 = 舞台
+            // 舞台判定
             if (obj === this.objects[0]) {
                 let d = Phaser.Math.Distance.Between(
                     this.player.x,
@@ -298,12 +318,10 @@ const config = {
     type: Phaser.AUTO,
     width: 960,
     height: 540,
-
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-
     scene: [StartScene, GameScene, MusicScene]
 };
 
