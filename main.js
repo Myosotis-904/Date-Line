@@ -67,7 +67,7 @@ class GameScene extends Phaser.Scene {
 
         this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
 
-        // ===== 物件（只擋底部🔥）=====
+        // ===== 物件（只擋腳底）=====
         this.objects = [];
 
         const addObject = (x, y, key, scale, w, h) => {
@@ -82,7 +82,7 @@ class GameScene extends Phaser.Scene {
         addObject(700, 2165, 'tree', 0.7, 2000, 100);
         addObject(700, 2120, 'sign', 0.8, 120, 100);
 
-        // ===== 安全出生點 =====
+        // ===== 出生點 =====
         let spawnX = worldWidth / 2;
         let spawnY = worldHeight - 50;
 
@@ -104,7 +104,6 @@ class GameScene extends Phaser.Scene {
             .setOrigin(0.5, 1)
             .setScale(0.7);
 
-        // ===== 影子 =====
         this.shadow = this.add.ellipse(
             spawnX,
             spawnY + 2,
@@ -147,9 +146,9 @@ class GameScene extends Phaser.Scene {
 
         this.cameras.main.startFollow(this.player);
 
-        // ===== 搖桿 =====
+        // ===== 搖桿（最穩版本🔥）=====
         this.baseX = 120;
-        this.baseY = this.cameras.main.height - 120;
+        this.baseY = this.scale.height - 120;
 
         this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
             .setScrollFactor(0);
@@ -171,8 +170,9 @@ class GameScene extends Phaser.Scene {
         this.input.on('pointermove', (pointer) => {
             if (!this.joyActive || pointer.id !== this.joyPointerId) return;
 
-            let dx = pointer.position.x - this.baseX;
-            let dy = pointer.position.y - this.baseY;
+            // ⭐ 用 screen 座標（關鍵）
+            let dx = pointer.x - this.baseX;
+            let dy = pointer.y - this.baseY;
 
             let dist = Math.sqrt(dx*dx + dy*dy);
             let max = 60;
@@ -188,7 +188,7 @@ class GameScene extends Phaser.Scene {
             this.joyY = dy / max;
         });
 
-            this.input.on('pointerup', (pointer) => {
+        this.input.on('pointerup', (pointer) => {
             if (pointer.id !== this.joyPointerId) return;
 
             this.joyActive = false;
@@ -199,12 +199,11 @@ class GameScene extends Phaser.Scene {
             this.joyY = 0;
         });
 
-        // 旋轉修正
+        // ⭐ 重點：用 scale.height（不是 camera）
         this.scale.on('resize', (gameSize) => {
+            const { height } = gameSize;
 
-            const cam = this.cameras.main;
-
-            this.baseY = cam.height - 120;
+            this.baseY = height - 120;
 
             this.joyBase.setPosition(this.baseX, this.baseY);
             this.joyStick.setPosition(this.baseX, this.baseY);
@@ -258,7 +257,7 @@ class GameScene extends Phaser.Scene {
 
         let nearStage = false;
 
-        // ===== 分軸碰撞（不卡🔥）=====
+        // ===== 分軸碰撞（不卡）=====
         for (let obj of this.objects) {
 
             let inside =
@@ -282,7 +281,6 @@ class GameScene extends Phaser.Scene {
                 }
             }
 
-            // 舞台距離
             if (obj === this.objects[0]) {
                 let d = Phaser.Math.Distance.Between(
                     this.player.x,
@@ -306,6 +304,8 @@ class GameScene extends Phaser.Scene {
         } else {
             this.player.anims.play('idle', true);
         }
+
+        this.actionButton.setVisible(nearStage);
 
         // ===== 按鈕 =====
         this.actionButton.setVisible(nearStage);
