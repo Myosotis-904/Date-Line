@@ -269,6 +269,9 @@ class GameScene extends Phaser.Scene {
 
         this.actionButton.setVisible(d < 200);
     }
+    setTimeout(() => {
+    this.scale.refresh();
+}, 200);
 }
 class MusicScene extends Phaser.Scene {
     constructor() {
@@ -304,7 +307,3 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
-
-setTimeout(() => {
-    this.scale.refresh();
-}, 200);
