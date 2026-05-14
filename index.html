@@ -4,30 +4,47 @@
 <meta charset="UTF-8">
 <title>My Game</title>
 
-<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
-
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<!-- 🔥 關鍵：手機全螢幕 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 
 <style>
 html, body {
     margin: 0;
     padding: 0;
+    height: 100%;
     overflow: hidden;
     background: black;
 }
 
-canvas {
-    display: block;
+/* Phaser容器 */
+#game-container {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
 }
 </style>
 </head>
-window.addEventListener('load', () => {
+
+<body>
+
+<div id="game-container"></div>
+
+<script>
+// 🔥 模擬像 Ensemble Stars 那種隱藏工具列
+function hideAddressBar() {
+    document.body.style.height = '200vh';
+
     setTimeout(() => {
         window.scrollTo(0, 1);
-    }, 100);
-});
-<body>
+        document.body.style.height = '100vh';
+    }, 50);
+}
+
+window.addEventListener('load', hideAddressBar);
+window.addEventListener('orientationchange', hideAddressBar);
+</script>
+
 <script src="main.js"></script>
+
 </body>
 </html>
