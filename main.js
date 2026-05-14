@@ -127,7 +127,7 @@ class GameScene extends Phaser.Scene {
 
         // ===== 搖桿 =====
         this.baseX = 120;
-        this.baseY = this.scale.height - 120;
+        this.baseY = this.cameras.main.height - 120;
 
         this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
             .setScrollFactor(0);
@@ -289,13 +289,22 @@ class MusicScene extends Phaser.Scene {
 
 const config = {
     type: Phaser.AUTO,
+
+    parent: 'game-container', // ⭐超重要（讓畫面不亂）
+
     width: 960,
     height: 540,
+
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
+
     scene: [StartScene, GameScene, MusicScene]
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+setTimeout(() => {
+    this.scale.refresh();
+}, 200);
