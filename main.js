@@ -149,7 +149,7 @@ class GameScene extends Phaser.Scene {
 
         // ===== 搖桿 =====
         this.baseX = 120;
-        this.baseY = this.scale.height - 120;
+        this.baseY = this.cameras.main.height - 120;
 
         this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
             .setScrollFactor(0);
@@ -168,22 +168,11 @@ class GameScene extends Phaser.Scene {
             this.joyPointerId = pointer.id;
         });
 
-        this.input.on('pointerup', (pointer) => {
-            if (pointer.id !== this.joyPointerId) return;
-
-            this.joyActive = false;
-            this.joyPointerId = null;
-
-            this.joyStick.setPosition(this.baseX, this.baseY);
-            this.joyX = 0;
-            this.joyY = 0;
-        });
-
         this.input.on('pointermove', (pointer) => {
             if (!this.joyActive || pointer.id !== this.joyPointerId) return;
 
-            let dx = pointer.x - this.baseX;
-            let dy = pointer.y - this.baseY;
+            let dx = pointer.position.x - this.baseX;
+            let dy = pointer.position.y - this.baseY;
 
             let dist = Math.sqrt(dx*dx + dy*dy);
             let max = 60;
@@ -199,10 +188,23 @@ class GameScene extends Phaser.Scene {
             this.joyY = dy / max;
         });
 
+            this.input.on('pointerup', (pointer) => {
+            if (pointer.id !== this.joyPointerId) return;
+
+            this.joyActive = false;
+            this.joyPointerId = null;
+
+            this.joyStick.setPosition(this.baseX, this.baseY);
+            this.joyX = 0;
+            this.joyY = 0;
+        });
+
         // 旋轉修正
         this.scale.on('resize', (gameSize) => {
-            const { height } = gameSize;
-            this.baseY = height - 120;
+
+            const cam = this.cameras.main;
+
+            this.baseY = cam.height - 120;
 
             this.joyBase.setPosition(this.baseX, this.baseY);
             this.joyStick.setPosition(this.baseX, this.baseY);
