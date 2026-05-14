@@ -4,31 +4,16 @@ class StartScene extends Phaser.Scene {
     }
 
     create() {
-        this.titleText = this.add.text(
-            this.scale.width / 2,
-            this.scale.height / 2 - 50,
-            '換日線',
-            { fontSize: '40px', fill: '#fff' }
-        ).setOrigin(0.5);
+        this.add.text(this.scale.width/2, this.scale.height/2 - 50, '換日線',
+            { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
 
-        this.startText = this.add.text(
-            this.scale.width / 2,
-            this.scale.height / 2 + 50,
-            '點擊開始',
-            { fontSize: '30px', fill: '#a5e8ff' }
-        )
-        .setOrigin(0.5)
-        .setInteractive();
-
-        this.startText.on('pointerdown', () => {
-            this.scene.start('GameScene');
-        });
-
-        this.scale.on('resize', (gameSize) => {
-            const { width, height } = gameSize;
-            this.titleText.setPosition(width / 2, height / 2 - 50);
-            this.startText.setPosition(width / 2, height / 2 + 50);
-        });
+        this.add.text(this.scale.width/2, this.scale.height/2 + 50, '點擊開始',
+            { fontSize: '30px', fill: '#a5e8ff' })
+            .setOrigin(0.5)
+            .setInteractive()
+            .on('pointerdown', () => {
+                this.scene.start('GameScene');
+            });
     }
 }
 
@@ -51,10 +36,9 @@ class GameScene extends Phaser.Scene {
 
     create() {
         this.input.addPointer(3);
-        
-        setTimeout(() => {
-        this.scale.refresh();
-        }, 200);
+
+        // ⭐ 修正手機尺寸
+        setTimeout(() => this.scale.refresh(), 200);
 
         // ===== 地圖 =====
         this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
@@ -74,7 +58,7 @@ class GameScene extends Phaser.Scene {
         // ===== 物件（透明底碰撞🔥）=====
         this.objects = [];
 
-        this.addObject = (x, y, key, scale, w, h) => {
+        const addObject = (x, y, key, scale, w, h) => {
             let sprite = this.add.image(x, y, key)
                 .setOrigin(0.5, 1)
                 .setScale(scale);
@@ -82,10 +66,9 @@ class GameScene extends Phaser.Scene {
             this.objects.push({ sprite, width: w, height: h });
         };
 
-        // 舞台 / 樹 / 招牌
-        this.addObject(600, 1200, 'stage', 2.7, 300, 120);
-        this.addObject(700, 2150, 'tree', 0.8, 120, 80);
-        this.addObject(500, 2150, 'sign', 0.8, 100, 60);
+        addObject(600, 1200, 'stage', 2.5, 300, 120);
+        addObject(700, 2150, 'tree', 0.8, 120, 80);
+        addObject(500, 2150, 'sign', 0.8, 100, 60);
 
         // ===== 玩家 =====
         this.player = this.add.sprite(
@@ -96,7 +79,6 @@ class GameScene extends Phaser.Scene {
         .setOrigin(0.5, 1)
         .setScale(0.7);
 
-        // 安全區（避免出生卡住）
         this.safeZone = {
             x: this.player.x,
             y: this.player.y,
@@ -114,28 +96,25 @@ class GameScene extends Phaser.Scene {
         this.anims.create({
             key: 'walk_left',
             frames: [2,3,4,3].map(f => ({ key:'player', frame:f })),
-            frameRate: 3,
+            frameRate: 4,
             repeat: -1
         });
 
         this.anims.create({
             key: 'walk_right',
             frames: [5,6,7,6].map(f => ({ key:'player', frame:f })),
-            frameRate: 3,
+            frameRate: 4,
             repeat: -1
         });
 
         this.player.anims.play('idle');
-
         this.cameras.main.startFollow(this.player);
 
-        // ===== 搖桿 =====
+        // ===== 搖桿（完整版修正🔥）=====
         this.baseX = 120;
-        this.baseY = this.cameras.main.height - 120;
+        this.baseY = this.scale.height - 120;
 
-        this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
-            .setScrollFactor(0);
-
+        this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4).setScrollFactor(0);
         this.joyStick = this.add.circle(this.baseX, this.baseY, 30, 0xffffff, 0.7)
             .setInteractive()
             .setScrollFactor(0);
@@ -153,8 +132,8 @@ class GameScene extends Phaser.Scene {
         this.input.on('pointermove', (pointer) => {
             if (!this.joyActive || pointer.id !== this.joyPointerId) return;
 
-            let dx = pointer.position.x - this.baseX;
-            let dy = pointer.position.y - this.baseY;
+            let dx = pointer.x - this.baseX;
+            let dy = pointer.y - this.baseY;
 
             let dist = Math.sqrt(dx*dx + dy*dy);
             let max = 60;
@@ -165,7 +144,6 @@ class GameScene extends Phaser.Scene {
             }
 
             this.joyStick.setPosition(this.baseX + dx, this.baseY + dy);
-
             this.joyX = dx / max;
             this.joyY = dy / max;
         });
@@ -175,18 +153,15 @@ class GameScene extends Phaser.Scene {
 
             this.joyActive = false;
             this.joyPointerId = null;
-
             this.joyStick.setPosition(this.baseX, this.baseY);
             this.joyX = 0;
             this.joyY = 0;
         });
 
-        // 螢幕旋轉修正
+        // ⭐ 旋轉修正（不卡版）
         this.scale.on('resize', (gameSize) => {
             const { height } = gameSize;
-
             this.baseY = height - 120;
-
             this.joyBase.setPosition(this.baseX, this.baseY);
             this.joyStick.setPosition(this.baseX, this.baseY);
         });
@@ -200,9 +175,8 @@ class GameScene extends Phaser.Scene {
         )
         .setScrollFactor(0)
         .setInteractive()
-        .setVisible(false);
-
-        this.actionButton.on('pointerdown', () => {
+        .setVisible(false)
+        .on('pointerdown', () => {
             this.scene.start('MusicScene');
         });
     }
@@ -213,15 +187,12 @@ class GameScene extends Phaser.Scene {
         let prevX = this.player.x;
         let prevY = this.player.y;
 
-        // ===== 移動 =====
         this.player.x += this.joyX * speed;
         this.player.y += this.joyY * speed;
 
-        // ===== 邊界 =====
         this.player.x = Phaser.Math.Clamp(this.player.x, 0, this.worldWidth);
         this.player.y = Phaser.Math.Clamp(this.player.y, 0, this.worldHeight);
 
-        // ===== 安全區 =====
         let inSafeZone =
             Phaser.Math.Distance.Between(
                 this.player.x,
@@ -230,7 +201,6 @@ class GameScene extends Phaser.Scene {
                 this.safeZone.y
             ) < this.safeZone.radius;
 
-        // ===== 碰撞（透明底🔥）=====
         for (let obj of this.objects) {
 
             let inside =
@@ -248,13 +218,11 @@ class GameScene extends Phaser.Scene {
                     this.player.y > obj.sprite.y - obj.height &&
                     this.player.y < obj.sprite.y;
 
-                if (stillInside) {
-                    this.player.y = prevY;
-                }
+                if (stillInside) this.player.y = prevY;
             }
         }
 
-        // ===== 動畫 =====
+        // 動畫
         if (this.joyX < -0.2) {
             this.player.anims.play('walk_left', true);
         } else if (this.joyX > 0.2) {
@@ -263,7 +231,7 @@ class GameScene extends Phaser.Scene {
             this.player.anims.play('idle', true);
         }
 
-        // ===== 舞台互動 =====
+        // 舞台互動
         let d = Phaser.Math.Distance.Between(
             this.player.x,
             this.player.y,
@@ -274,6 +242,7 @@ class GameScene extends Phaser.Scene {
         this.actionButton.setVisible(d < 200);
     }
 }
+
 class MusicScene extends Phaser.Scene {
     constructor() {
         super('MusicScene');
@@ -293,18 +262,14 @@ class MusicScene extends Phaser.Scene {
 
 const config = {
     type: Phaser.AUTO,
-
-    parent: 'game-container', // ⭐超重要（讓畫面不亂）
-
+    parent: 'game-container',
     width: 960,
     height: 540,
-
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-
     scene: [StartScene, GameScene, MusicScene]
 };
 
-const game = new Phaser.Game(config);
+new Phaser.Game(config);
