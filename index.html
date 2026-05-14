@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <title>My Game</title>
 
-<!-- 🔥 關鍵：手機全螢幕 -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 
 <style>
@@ -16,11 +15,9 @@ html, body {
     background: black;
 }
 
-/* Phaser容器 */
 #game-container {
     width: 100vw;
     height: 100vh;
-    overflow: hidden;
 }
 </style>
 </head>
@@ -29,21 +26,23 @@ html, body {
 
 <div id="game-container"></div>
 
+<!-- Phaser -->
+<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+
+<!-- 隱藏手機工具列 -->
 <script>
-// 🔥 模擬像 Ensemble Stars 那種隱藏工具列
 function hideAddressBar() {
     document.body.style.height = '200vh';
-
     setTimeout(() => {
         window.scrollTo(0, 1);
         document.body.style.height = '100vh';
     }, 50);
 }
-
 window.addEventListener('load', hideAddressBar);
 window.addEventListener('orientationchange', hideAddressBar);
 </script>
 
+<!-- 主程式 -->
 <script src="main.js"></script>
 
 </body>
