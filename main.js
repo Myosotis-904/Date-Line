@@ -38,14 +38,14 @@ class GameScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image('map', 'assets/map.png');
-        this.load.spritesheet('player', 'assets/player.png', {
+        this.load.image('map', './assets/map.png');
+        this.load.image('stage', './assets/stage.png');
+        this.load.image('tree', './assets/tree.png');
+        this.load.image('sign', './assets/sign.png');
+        this.load.spritesheet('player', './assets/player.png', {
             frameWidth: 256,
             frameHeight: 256
         });
-        this.load.image('stage', 'assets/stage.png');
-        this.load.image('tree', 'assets/tree.png');
-        this.load.image('sign', 'assets/sign.png');
     }
 
     create() {
