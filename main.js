@@ -51,6 +51,10 @@ class GameScene extends Phaser.Scene {
 
     create() {
         this.input.addPointer(3);
+        
+        setTimeout(() => {
+        this.scale.refresh();
+        }, 200);
 
         // ===== 地圖 =====
         this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
@@ -269,9 +273,6 @@ class GameScene extends Phaser.Scene {
 
         this.actionButton.setVisible(d < 200);
     }
-    setTimeout(() => {
-    this.scale.refresh();
-}, 200);
 }
 class MusicScene extends Phaser.Scene {
     constructor() {
