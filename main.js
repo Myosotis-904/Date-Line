@@ -67,7 +67,7 @@ class GameScene extends Phaser.Scene {
 
         this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
 
-        // ===== 物件（腳底碰撞🔥）=====
+        // ===== 物件（只擋底部🔥）=====
         this.objects = [];
 
         const addObject = (x, y, key, scale, w, h) => {
@@ -75,32 +75,24 @@ class GameScene extends Phaser.Scene {
                 .setOrigin(0.5, 1)
                 .setScale(scale);
 
-            this.objects.push({
-                sprite,
-                width: w,
-                height: h
-            });
+            this.objects.push({ sprite, width: w, height: h });
         };
 
-        // 👉 只抓底部（透明可穿關鍵🔥）
         addObject(400, 1200, 'stage', 2.7, 400, 180);
-        addObject(700, 2165, 'tree', 0.7, 2000, 120);
+        addObject(700, 2165, 'tree', 0.7, 2000, 100);
         addObject(700, 2120, 'sign', 0.8, 120, 100);
 
-       
         // ===== 安全出生點 =====
         let spawnX = worldWidth / 2;
         let spawnY = worldHeight - 50;
 
         const isBlocked = (x, y) => {
-            return this.objects.some(obj => {
-                return (
-                    x > obj.sprite.x - obj.width / 2 &&
-                    x < obj.sprite.x + obj.width / 2 &&
-                    y > obj.sprite.y - obj.height &&
-                    y < obj.sprite.y
-                );
-            });
+            return this.objects.some(obj =>
+                x > obj.sprite.x - obj.width / 2 &&
+                x < obj.sprite.x + obj.width / 2 &&
+                y > obj.sprite.y - obj.height &&
+                y < obj.sprite.y
+            );
         };
 
         while (isBlocked(spawnX, spawnY)) {
@@ -122,7 +114,7 @@ class GameScene extends Phaser.Scene {
             0.25
         );
 
-        // ===== 安全區（出生不卡🔥）=====
+        // ===== 安全區 =====
         this.safeZone = {
             x: spawnX,
             y: spawnY,
@@ -157,7 +149,7 @@ class GameScene extends Phaser.Scene {
 
         // ===== 搖桿 =====
         this.baseX = 120;
-        this.baseY = this.cameras.main.height - 120;
+        this.baseY = this.scale.height - 120;
 
         this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
             .setScrollFactor(0);
@@ -167,22 +159,28 @@ class GameScene extends Phaser.Scene {
             .setScrollFactor(0);
 
         this.joyActive = false;
+        this.joyPointerId = null;
         this.joyX = 0;
         this.joyY = 0;
 
-        this.joyStick.on('pointerdown', () => {
+        this.joyStick.on('pointerdown', (pointer) => {
             this.joyActive = true;
+            this.joyPointerId = pointer.id;
         });
 
-        this.input.on('pointerup', () => {
+        this.input.on('pointerup', (pointer) => {
+            if (pointer.id !== this.joyPointerId) return;
+
             this.joyActive = false;
+            this.joyPointerId = null;
+
             this.joyStick.setPosition(this.baseX, this.baseY);
             this.joyX = 0;
             this.joyY = 0;
         });
 
         this.input.on('pointermove', (pointer) => {
-            if (!this.joyActive) return;
+            if (!this.joyActive || pointer.id !== this.joyPointerId) return;
 
             let dx = pointer.x - this.baseX;
             let dy = pointer.y - this.baseY;
@@ -199,6 +197,15 @@ class GameScene extends Phaser.Scene {
 
             this.joyX = dx / max;
             this.joyY = dy / max;
+        });
+
+        // 旋轉修正
+        this.scale.on('resize', (gameSize) => {
+            const { height } = gameSize;
+            this.baseY = height - 120;
+
+            this.joyBase.setPosition(this.baseX, this.baseY);
+            this.joyStick.setPosition(this.baseX, this.baseY);
         });
 
         // ===== 按鈕 =====
@@ -229,18 +236,16 @@ class GameScene extends Phaser.Scene {
 
         // ===== 邊界 =====
         this.player.x = Phaser.Math.Clamp(
-            this.player.x,
-            0,
+            this.player.x, 0,
             this.map.width * this.map.scaleX
         );
 
         this.player.y = Phaser.Math.Clamp(
-            this.player.y,
-            0,
+            this.player.y, 0,
             this.map.height * this.map.scaleY
         );
 
-        //===== 安全區判定 =====
+        // ===== 安全區 =====
         let inSafeZone =
             Phaser.Math.Distance.Between(
                 this.player.x,
@@ -249,9 +254,9 @@ class GameScene extends Phaser.Scene {
                 this.safeZone.y
             ) < this.safeZone.radius;
 
-        // ===== 碰撞（不卡滑動）=====
         let nearStage = false;
 
+        // ===== 分軸碰撞（不卡🔥）=====
         for (let obj of this.objects) {
 
             let inside =
@@ -262,12 +267,20 @@ class GameScene extends Phaser.Scene {
 
             if (inside && !inSafeZone) {
 
-                //  分軸（不卡關鍵）
                 this.player.x = prevX;
-                this.player.y = prevY;
+
+                let stillInside =
+                    prevX > obj.sprite.x - obj.width / 2 &&
+                    prevX < obj.sprite.x + obj.width / 2 &&
+                    this.player.y > obj.sprite.y - obj.height &&
+                    this.player.y < obj.sprite.y;
+
+                if (stillInside) {
+                    this.player.y = prevY;
+                }
             }
 
-            // 舞台判定
+            // 舞台距離
             if (obj === this.objects[0]) {
                 let d = Phaser.Math.Distance.Between(
                     this.player.x,
