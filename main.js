@@ -1,4 +1,22 @@
 /* =========================================================
+   main.js — 換日線完整版
+========================================================= */
+
+const MUSIC_CFG = {
+    LANES:      7,
+    NOTE_SPEED: 400,
+    HIT_RATIO:  0.82,
+    KEY_RATIO:  0.13,
+    NOTE_W:     0.80,
+    NOTE_H:     16,
+    WIN_PF:     55,
+    WIN_GD:     110,
+    LOOK_AHEAD: 1600,
+    COLORS: [0x7c6fff, 0x5fb8ff, 0x5fffb8, 0xffe066, 0xff7eb3, 0xff6f6f, 0xc084fc],
+    KEY_LABELS: ['①', '②', '③', '④', '⑤', '⑥', '⑦'],
+};
+
+/* =========================================================
    StartScene
 ========================================================= */
 class StartScene extends Phaser.Scene {
@@ -39,11 +57,9 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
-        // [9] 提高 pointer 數量，確保多指不漏
         this.input.addPointer(5);
         setTimeout(() => this.scale.refresh(), 200);
 
-        // ── 地圖 ──
         this.map = this.add.image(0, 0, 'map').setOrigin(0, 0);
         const mapScale = Math.max(
             this.scale.width  / this.map.width,
@@ -54,7 +70,6 @@ class GameScene extends Phaser.Scene {
         this.worldHeight = this.map.height * mapScale;
         this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
-        // ── 物件（碰撞用）──
         this.objects = [];
         const addObject = (x, y, key, scale, w, h) => {
             const sprite = this.add.image(x, y, key).setOrigin(0.5, 1).setScale(scale);
@@ -64,7 +79,6 @@ class GameScene extends Phaser.Scene {
         addObject(700,  2150, 'tree',  0.8, 120,  80);
         addObject(500,  2150, 'sign',  0.8, 100,  60);
 
-        // ── 玩家 ──
         this.player = this.add.sprite(
             this.worldWidth / 2,
             this.worldHeight - 50,
@@ -73,7 +87,6 @@ class GameScene extends Phaser.Scene {
 
         this.safeZone = { x: this.player.x, y: this.player.y, radius: 100 };
 
-        // ── 動畫 ──
         this.anims.create({ key: 'idle',
             frames: [0,1].map(f => ({ key:'player', frame:f })),
             frameRate: 2, repeat: -1 });
@@ -86,7 +99,6 @@ class GameScene extends Phaser.Scene {
         this.player.anims.play('idle');
         this.cameras.main.startFollow(this.player);
 
-        // ── 搖桿 [8] 改為底部任意區域按壓 ──
         this.baseX = 120;
         this.baseY = this.scale.height - 120;
         this.joyBase = this.add.circle(this.baseX, this.baseY, 60, 0x888888, 0.4)
@@ -99,12 +111,10 @@ class GameScene extends Phaser.Scene {
         this.joyX = 0;
         this.joyY = 0;
 
-        // 整個場景 pointerdown：左半部下方啟動搖桿
         this.input.on('pointerdown', (pointer) => {
             if (this.joyActive) return;
             const screenX = pointer.x;
             const screenY = pointer.y;
-            // 只在左半部且下方 40% 響應
             if (screenX < this.scale.width * 0.5 && screenY > this.scale.height * 0.55) {
                 this.joyActive    = true;
                 this.joyPointerId = pointer.id;
@@ -141,7 +151,6 @@ class GameScene extends Phaser.Scene {
             this.joyStick.setPosition(this.baseX, gameSize.height - 120);
         });
 
-        // ── 互動按鈕 ──
         this.actionButton = this.add.text(
             this.scale.width - 120,
             this.scale.height - 120,
@@ -200,28 +209,14 @@ class GameScene extends Phaser.Scene {
 }
 
 /* =========================================================
-   MusicScene — 手機觸控版 + Hold Note 支援
+   MusicScene — 手機觸控版 + Hold Note（世界計畫風格）
    Hold Note 判定邏輯：
-   - 頭部按下（在 WIN_GD 內）→ 進入 holding 狀態
-   - 手指持續壓到尾部時間 → 給 PERFECT/GOOD 分
-   - 中途放開 → 立即 break（miss + combo 歸零）
-   - 頭部完全錯過（miss）→ 整條 note 作廢
+   - 整塊長方形一起下落，頭部先到判定線
+   - 頭部按下（在 WIN_GD 內）→ 進入 holding 狀態，整塊繼續下落
+   - 整塊穿過判定線，尾部也過了 → 自動完成給分
+   - 中途放開手指 → BREAK（miss + combo 歸零）
+   - 頭部完全錯過 → Miss
 ========================================================= */
-
-const MUSIC_CFG = {
-    LANES:      7,
-    NOTE_SPEED: 400,
-    HIT_RATIO:  0.82,
-    KEY_RATIO:  0.13,
-    NOTE_W:     0.80,
-    NOTE_H:     16,
-    WIN_PF:     55,
-    WIN_GD:     110,
-    LOOK_AHEAD: 1600,
-    COLORS: [0x7c6fff, 0x5fb8ff, 0x5fffb8, 0xffe066, 0xff7eb3, 0xff6f6f, 0xc084fc],
-    KEY_LABELS: ['①', '②', '③', '④', '⑤', '⑥', '⑦'],
-};
-
 class MusicScene extends Phaser.Scene {
     constructor() {
         super('MusicScene');
@@ -242,44 +237,37 @@ class MusicScene extends Phaser.Scene {
         this.hitY      = H * MUSIC_CFG.HIT_RATIO;
         this.keyH      = H * MUSIC_CFG.KEY_RATIO;
 
-        // ── 狀態 ──
-        this.noteQueue   = [];
-        this.activeNotes = [];  // 一般 note + hold note 頭部
-        this.score       = 0;
-        this.combo       = 0;
-        this.maxCombo    = 0;
-        this.perfectCnt  = 0;
-        this.goodCnt     = 0;
-        this.missCnt     = 0;
-        this.gameReady   = false;
+        this.noteQueue    = [];
+        this.activeNotes  = [];
+        this.score        = 0;
+        this.combo        = 0;
+        this.maxCombo     = 0;
+        this.perfectCnt   = 0;
+        this.goodCnt      = 0;
+        this.missCnt      = 0;
+        this.gameReady    = false;
         this.musicStartAudioTime = 0;
 
-        // 觸控：pointerId → lane
-        this.touchLanes = {};
-        // 各 lane 目前正在 holding 的 note（lane → note object）
-        this.holdingNotes = {};
+        this.touchLanes   = {};   // pointerId → lane
+        this.holdingNotes = {};   // lane → note object
 
-        // ── 背景 ──
+        // 背景
         this.add.rectangle(W / 2, H / 2, W, H, 0x07070f);
 
-        // ── 軌道 ──
+        // 軌道
         this.laneGfx = this.add.graphics();
         this._drawLanes();
 
-        // ── 判定線 ──
+        // 判定線
         this.add.rectangle(W / 2, this.hitY, W, 3, 0xccbbff, 0.8);
 
-        // ── 按鍵區（每幀重繪） ──
+        // Hold 長條（depth -1，在 note 矩形之下）
+        this.holdGfx = this.add.graphics().setDepth(-1);
+
+        // 按鍵區
         this.keyGfx = this.add.graphics();
 
-        // Hold note 的長條 graphics（在一般 note 底下）
-        this.holdGfx = this.add.graphics();
-        // 確保 holdGfx 在 note 之下（先加入場景）
-        // 注意：Phaser 的 depth 預設都是 0，後加入的在上層
-        // 我們讓 holdGfx depth = -1，note rect depth = 0
-        this.holdGfx.setDepth(1);
-
-        // ── 按鍵標籤 ──
+        // 按鍵標籤
         this._keyLabels = MUSIC_CFG.KEY_LABELS.map((label, i) =>
             this.add.text(
                 i * this.laneWidth + this.laneWidth / 2,
@@ -293,7 +281,7 @@ class MusicScene extends Phaser.Scene {
             ).setOrigin(0.5, 0.5).setAlpha(0.5)
         );
 
-        // ── HUD ──
+        // HUD
         this.scoreTxt = this.add.text(W - 16, 12, '0', {
             fontSize: '28px', fill: '#d4caff', fontFamily: 'monospace', align: 'right'
         }).setOrigin(1, 0);
@@ -310,7 +298,7 @@ class MusicScene extends Phaser.Scene {
             fontSize: '20px', fill: '#a5e8ff', fontFamily: 'monospace'
         }).setOrigin(0.5);
 
-        // ── 離開按鈕 ──
+        // 離開按鈕
         this.add.text(16, 12, '← 離開', {
             fontSize: '16px', fill: '#666',
             fontFamily: 'monospace',
@@ -324,41 +312,34 @@ class MusicScene extends Phaser.Scene {
             this.scene.start('GameScene');
         });
 
-        // ── 觸控事件 ──
+        // 觸控事件
         this.input.on('pointerdown', (ptr) => {
             if (!this.gameReady) return;
             const lane = this._getLane(ptr.x);
             if (lane === -1) return;
             this.touchLanes[ptr.id] = lane;
-            this._tryHit(lane, ptr.id);
+            this._tryHit(lane);
             this._drawKeys();
         });
 
         this.input.on('pointerup', (ptr) => {
             const lane = this.touchLanes[ptr.id];
-            if (lane !== undefined) {
-                // 手指放開：如果還在 holding，判定 break
-                this._tryHoldRelease(lane, false);
-            }
+            if (lane !== undefined) this._tryHoldRelease(lane);
             delete this.touchLanes[ptr.id];
             this._drawKeys();
         });
 
         this.input.on('pointercancel', (ptr) => {
             const lane = this.touchLanes[ptr.id];
-            if (lane !== undefined) {
-                this._tryHoldRelease(lane, false);
-            }
+            if (lane !== undefined) this._tryHoldRelease(lane);
             delete this.touchLanes[ptr.id];
             this._drawKeys();
         });
 
         this.scale.on('resize', (gameSize) => {
-            const nW = gameSize.width;
-            const nH = gameSize.height;
-            this.laneWidth = nW / this.laneCount;
-            this.hitY      = nH * MUSIC_CFG.HIT_RATIO;
-            this.keyH      = nH * MUSIC_CFG.KEY_RATIO;
+            this.laneWidth = gameSize.width / this.laneCount;
+            this.hitY      = gameSize.height * MUSIC_CFG.HIT_RATIO;
+            this.keyH      = gameSize.height * MUSIC_CFG.KEY_RATIO;
             this._drawLanes();
             this._drawKeys();
             this._keyLabels.forEach((t, i) => {
@@ -377,10 +358,8 @@ class MusicScene extends Phaser.Scene {
             const data = await this._loadBeatmap('beatmap.txt');
             this.noteQueue = data;
             this.statusTxt.setVisible(false);
-
             this.music = this.sound.add('music');
             this.music.play();
-
             this.musicStartAudioTime = this.sound.context.currentTime;
             this.gameReady = true;
         } catch (err) {
@@ -397,10 +376,12 @@ class MusicScene extends Phaser.Scene {
 
         this._spawnNotes(elapsed);
         this._updateNotes(elapsed);
-        this._drawHoldBodies(elapsed);   // 每幀重繪 hold 長條
-        this._drawKeys();                // 每幀重繪按鍵區（含 holding 光效）
+        this._drawHoldBodies(elapsed);
+        this._drawKeys();
 
-        if (this.noteQueue.length === 0 && this.activeNotes.length === 0
+        // 所有 note 和 hold 都結束才顯示結果
+        if (this.noteQueue.length === 0
+            && this.activeNotes.length === 0
             && Object.keys(this.holdingNotes).length === 0) {
             this.gameReady = false;
             this._showResult();
@@ -409,93 +390,75 @@ class MusicScene extends Phaser.Scene {
 
     // ── 生成 Note ─────────────────────────────────────────
     _spawnNotes(elapsed) {
-        while (
-            this.noteQueue.length &&
-            this.noteQueue[0].time <= elapsed + MUSIC_CFG.LOOK_AHEAD
-        ) {
+        while (this.noteQueue.length &&
+               this.noteQueue[0].time <= elapsed + MUSIC_CFG.LOOK_AHEAD) {
             this._spawnNote(this.noteQueue.shift(), elapsed);
         }
     }
 
     _spawnNote(data, elapsed) {
-        const x      = this.laneWidth * data.lane + this.laneWidth / 2;
-        const nw     = this.laneWidth * MUSIC_CFG.NOTE_W;
+        const x        = this.laneWidth * data.lane + this.laneWidth / 2;
+        const nw       = this.laneWidth * MUSIC_CFG.NOTE_W;
         const timeLeft = data.time - elapsed;
-        const y      = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
+        const y        = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
-        // 頭部矩形（一般 note 和 hold note 共用）
         const note = this.add.rectangle(x, y, nw, MUSIC_CFG.NOTE_H,
             MUSIC_CFG.COLORS[data.lane]);
         note.setStrokeStyle(1.5, 0xffffff, 0.3);
 
         note._noteTime    = data.time;
-        note._noteEndTime = data.isHold ? data.endTime : data.time; // hold 的尾部時間
+        note._noteEndTime = data.isHold ? data.endTime : data.time;
         note._lane        = data.lane;
         note._isHold      = data.isHold;
         note._state       = 'alive';   // alive | holding | hit | miss | break
+        note._hitQuality  = null;
 
         this.activeNotes.push(note);
     }
 
     // ── 更新 Note ─────────────────────────────────────────
-    // Hold note 座標設計（世界計畫風格）：
-    //   note.y = 頭部底邊（noteTime），整塊一起移動不分離
-    //   尾部頂邊由 holdHeight（固定像素高度）決定：tailY = note.y - holdHeight
-    //
-    //   ┌──────┐ ← tailY（尾部）
+    // 世界計畫風格：整塊一起移動
+    //   ┌──────┐ ← tailY（尾部，endTime，在上）
     //   │      │
-    //   └──────┘ ← note.y（頭部）
+    //   └──────┘ ← note.y（頭部，noteTime，在下）
     //   ════════  判定線
-    //
-    // holding：整塊繼續往下穿過判定線，直到尾部也過了判定線完成
+    // holding 中整塊繼續往下穿過判定線，尾部過線後完成
     _updateNotes(elapsed) {
         const H = this.cameras.main.height;
 
         for (const note of this.activeNotes) {
             if (!note.active) continue;
 
-            // 所有狀態都照 noteTime 正常移動
+            // 所有狀態都照 noteTime 正常移動（整塊跟著走）
             const timeLeft = note._noteTime - elapsed;
             note.y = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
             if (note._state === 'holding') {
-            note.y = this.hitY; // ← 這行超重要！！！
-
-            if (elapsed >= note._noteEndTime) {
-                this._completeHold(note);
-            }
-            continue;
-}
-
-            if (note._state === 'alive' && note._noteTime < elapsed - MUSIC_CFG.WIN_GD) {
-                if (!note._isHold) {
-                    note._state = 'miss';
-                    this._onMiss();
-                    note.destroy();
+                // 尾部也過了判定線 → 自動完成
+                if (elapsed >= note._noteEndTime - MUSIC_CFG.WIN_GD) {
+                    this._completeHold(note);
                 }
                 continue;
             }
 
-        // 一般 note
-        if (!note._isHold && note.y > H + 200) {
-            note.destroy();
-        }
+            // alive：頭部超過 Good 窗口仍未按 → Miss
+            if (note._state === 'alive' && note._noteTime < elapsed - MUSIC_CFG.WIN_GD) {
+                note._state = 'miss';
+                this._onMiss();
+                note.destroy();
+                continue;
+            }
 
-        // hold note：要看尾巴
-        if (note._isHold) {
-            const endTimeLeft = note._noteEndTime - elapsed;
-            const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
-
-            if (tailY > H + 200) {
+            // 整塊（含長條）完全離開畫面底部才清除
+            if (note.y > H + 200) {
                 note.destroy();
             }
         }
-                }
 
-                this.activeNotes = this.activeNotes.filter(n => n.active);
-            }
+        this.activeNotes = this.activeNotes.filter(n => n.active);
+    }
 
-    // ── 繪製 Hold 長條（每幀） ────────────────────────────
+    // ── 繪製 Hold 長條（每幀）────────────────────────────
     _drawHoldBodies(elapsed) {
         const g = this.holdGfx;
         g.clear();
@@ -505,20 +468,20 @@ class MusicScene extends Phaser.Scene {
             if (!note._isHold) continue;
             if (note._state === 'miss' || note._state === 'hit') continue;
 
-            const lane = note._lane;
-            const col  = MUSIC_CFG.COLORS[lane];
-            const bw   = this.laneWidth * MUSIC_CFG.NOTE_W;
-            const bx   = lane * this.laneWidth + (this.laneWidth - bw) / 2;
+            const lane      = note._lane;
+            const col       = MUSIC_CFG.COLORS[lane];
+            const bw        = this.laneWidth * MUSIC_CFG.NOTE_W;
+            const bx        = lane * this.laneWidth + (this.laneWidth - bw) / 2;
             const isHolding = note._state === 'holding';
 
-            // 頭部（noteTime）
+            // 頭部底邊（跟著 note.y 移動）
             const headY = note.y;
 
-            // 尾部（endTime）
-            const endTimeLeft = note._noteEndTime - elapsed;
-            const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
+            // 尾部頂邊：固定高度，整塊一起移動
+            const holdHeight = (note._noteEndTime - note._noteTime)
+                               * MUSIC_CFG.NOTE_SPEED / 1000;
+            const tailY = headY - holdHeight;
 
-            // 只繪製畫面內的部分
             const H = this.cameras.main.height;
             const drawTop    = Math.max(-20, tailY);
             const drawBottom = Math.min(H + 20, headY);
@@ -539,21 +502,18 @@ class MusicScene extends Phaser.Scene {
                 g.fillRect(bx + bw * 0.25, drawTop, bw * 0.5, drawHeight);
             }
 
-            // 尾部頂邊亮條（在畫面內才畫）
+            // 尾部頂邊亮條
             if (tailY > -10) {
                 g.fillStyle(isHolding ? 0xffffff : col, isHolding ? 0.9 : 0.85);
                 g.fillRect(bx, tailY - 4, bw, 8);
             }
         }
-
     }
 
     // ── 判定：嘗試擊中 ────────────────────────────────────
-    _tryHit(lane, pointerId) {
+    _tryHit(lane) {
         if (!this.gameReady) return;
-
-        // 如果這個 lane 已有 holding，不重複觸發
-        if (this.holdingNotes[lane]) return;
+        if (this.holdingNotes[lane]) return;   // 已在 holding，不重複
 
         const elapsed = (this.sound.context.currentTime - this.musicStartAudioTime) * 1000;
 
@@ -568,8 +528,7 @@ class MusicScene extends Phaser.Scene {
 
         if (bestDiff <= MUSIC_CFG.WIN_PF) {
             if (best._isHold) {
-                // Hold note：進入 holding 狀態，等待手指放開
-                best._state = 'holding';
+                best._state      = 'holding';
                 best._hitQuality = 'perfect';
                 this.holdingNotes[lane] = best;
                 this._showJudge('HOLD ✦', '#c4b8ff');
@@ -580,7 +539,7 @@ class MusicScene extends Phaser.Scene {
             }
         } else if (bestDiff <= MUSIC_CFG.WIN_GD) {
             if (best._isHold) {
-                best._state = 'holding';
+                best._state      = 'holding';
                 best._hitQuality = 'good';
                 this.holdingNotes[lane] = best;
                 this._showJudge('HOLD', '#5fb8ff');
@@ -590,36 +549,28 @@ class MusicScene extends Phaser.Scene {
                 this._onHit(100, 'GOOD', '#5fb8ff');
             }
         }
+        // 窗口外按下不計分也不 miss
     }
 
-    // ── Hold 自動完成（尾部到達判定線）────────────────────
+    // ── Hold 自動完成 ─────────────────────────────────────
     _completeHold(note) {
-        const lane = note._lane;
-        const pts  = note._hitQuality === 'perfect' ? 500 : 200;
-        const label = note._hitQuality === 'perfect' ? 'PERFECT ✦' : 'GOOD';
-        const color = note._hitQuality === 'perfect' ? '#c4b8ff' : '#5fb8ff';
-
+        const lane  = note._lane;
+        const isPF  = note._hitQuality === 'perfect';
         note._state = 'hit';
         note.destroy();
         delete this.holdingNotes[lane];
-        this._onHit(pts, label, color);
+        this._onHit(isPF ? 500 : 200, isPF ? 'PERFECT ✦' : 'GOOD', isPF ? '#c4b8ff' : '#5fb8ff');
     }
 
     // ── Hold 中途放開（break）────────────────────────────
-    _tryHoldRelease(lane, isCompleted) {
+    _tryHoldRelease(lane) {
         const note = this.holdingNotes[lane];
         if (!note) return;
-
-        if (isCompleted) {
-            this._completeHold(note);
-        } else {
-            // 尾部還沒到 → break
-            note._state = 'break';
-            note.destroy();
-            delete this.holdingNotes[lane];
-            this._onMiss();
-            this._showJudge('BREAK', '#ff8844');
-        }
+        note._state = 'break';
+        note.destroy();
+        delete this.holdingNotes[lane];
+        this._onMiss();
+        this._showJudge('BREAK', '#ff8844');
     }
 
     // ── 得分 / Miss ───────────────────────────────────────
@@ -638,18 +589,14 @@ class MusicScene extends Phaser.Scene {
         this.combo = 0;
         this.missCnt++;
         this.comboTxt.setText('');
-        this._showJudge('MISS', '#ff4466');
     }
 
     _showJudge(text, color) {
         const W = this.cameras.main.width;
         const H = this.cameras.main.height;
         this.judgeTxt
-            .setText(text)
-            .setStyle({ fill: color })
-            .setAlpha(1)
-            .setPosition(W / 2, H * 0.34);
-
+            .setText(text).setStyle({ fill: color })
+            .setAlpha(1).setPosition(W / 2, H * 0.34);
         if (this._judgeTimer) this._judgeTimer.remove();
         this._judgeTimer = this.time.delayedCall(400, () => {
             this.tweens.add({ targets: this.judgeTxt, alpha: 0, duration: 200 });
@@ -674,10 +621,9 @@ class MusicScene extends Phaser.Scene {
 
     // ── 畫按鍵區 ──────────────────────────────────────────
     _drawKeys() {
-        const g = this.keyGfx;
+        const g       = this.keyGfx;
         const pressed = new Set(Object.values(this.touchLanes));
-        // holding 中的 lane 也算按壓
-        Object.keys(this.holdingNotes).forEach(lane => pressed.add(Number(lane)));
+        Object.keys(this.holdingNotes).forEach(l => pressed.add(Number(l)));
 
         g.clear();
         for (let i = 0; i < this.laneCount; i++) {
@@ -685,17 +631,14 @@ class MusicScene extends Phaser.Scene {
             const y   = this.hitY + 2;
             const col = MUSIC_CFG.COLORS[i];
             const isP = pressed.has(i);
-            const isH = !!this.holdingNotes[i];   // 正在 hold
+            const isH = !!this.holdingNotes[i];
 
-            // 底色
             g.fillStyle(col, isH ? 0.40 : isP ? 0.28 : 0.06);
             g.fillRect(x, y, this.laneWidth, this.keyH);
 
-            // 上緣亮線（hold 時更粗）
             g.lineStyle(isH ? 4 : isP ? 3 : 1, col, isH ? 1.0 : isP ? 1.0 : 0.2);
             g.lineBetween(x, y, x + this.laneWidth, y);
 
-            // 外框
             g.lineStyle(isP || isH ? 1.5 : 0.5, col, isP || isH ? 0.7 : 0.12);
             g.strokeRect(x + 1, y, this.laneWidth - 2, this.keyH - 2);
         }
@@ -708,19 +651,17 @@ class MusicScene extends Phaser.Scene {
         });
     }
 
-    // ── 取得軌道 index ────────────────────────────────────
+    // ── 取得軌道 ──────────────────────────────────────────
     _getLane(screenX) {
         const lane = Math.floor(screenX / this.laneWidth);
-        if (lane < 0 || lane >= this.laneCount) return -1;
-        return lane;
+        return (lane < 0 || lane >= this.laneCount) ? -1 : lane;
     }
 
     // ── 譜面載入 ──────────────────────────────────────────
     async _loadBeatmap(url) {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        return this._parseBeatmap(text);
+        return this._parseBeatmap(await res.text());
     }
 
     _parseBeatmap(text) {
@@ -731,7 +672,6 @@ class MusicScene extends Phaser.Scene {
         return notes.sort((a, b) => a.time - b.time);
     }
 
-    // osu! 格式：hold note 尾部時間在第 6 欄（index 5）冒號前
     _parseOsu(lines) {
         const LANE_W = 512 / MUSIC_CFG.LANES;
         const notes  = [];
@@ -740,33 +680,26 @@ class MusicScene extends Phaser.Scene {
             if (line === '[HitObjects]') { inHit = true; continue; }
             if (line.startsWith('[') && inHit) break;
             if (!inHit) continue;
-
             const p    = line.split(',');
             if (p.length < 4) continue;
             const x    = parseInt(p[0]);
             const time = parseInt(p[2]);
             const type = parseInt(p[3]);
             if (isNaN(x) || isNaN(time) || isNaN(type)) continue;
-
             const isHold = (type & 128) !== 0;
-            // Hold note 尾部時間格式：endTime:hitsound:...
-            let endTime = time;
+            let endTime  = time;
             if (isHold && p[5]) {
                 const endRaw = parseInt(p[5].split(':')[0]);
                 if (!isNaN(endRaw) && endRaw > time) endTime = endRaw;
             }
-
             notes.push({
                 lane: Math.min(MUSIC_CFG.LANES - 1, Math.floor(x / LANE_W)),
-                time,
-                endTime,
-                isHold,
+                time, endTime, isHold,
             });
         }
         return notes;
     }
 
-    // CSV 格式：time_ms,lane[,isHold[,endTime_ms]]
     _parseCsv(lines) {
         const notes = [];
         for (const line of lines) {
@@ -777,7 +710,7 @@ class MusicScene extends Phaser.Scene {
             const lane = parseInt(p[1]);
             if (isNaN(time) || isNaN(lane)) continue;
             if (lane < 0 || lane >= MUSIC_CFG.LANES) continue;
-            const isHold = p[2] ? parseInt(p[2]) === 1 : false;
+            const isHold  = p[2] ? parseInt(p[2]) === 1 : false;
             const endTime = (isHold && p[3]) ? parseInt(p[3]) : time;
             notes.push({ time, lane, isHold, endTime });
         }
@@ -792,7 +725,7 @@ class MusicScene extends Phaser.Scene {
         const acc    = judged ? Math.round((this.perfectCnt + this.goodCnt) / judged * 100) : 0;
 
         let grade = 'D';
-        if (acc >= 95) grade = 'S';
+        if      (acc >= 95) grade = 'S';
         else if (acc >= 85) grade = 'A';
         else if (acc >= 70) grade = 'B';
         else if (acc >= 55) grade = 'C';
@@ -815,8 +748,8 @@ class MusicScene extends Phaser.Scene {
         row(`GRADE  ${grade}`, grade === 'S' ? '#ffe066' : '#e0deff', 32, 4);
         row('',        '',         0, 6);
         row(`SCORE  ${this.score.toLocaleString()}`, '#e0deff', 20);
-        row(`COMBO  ${this.maxCombo}x`, '#5fb8ff', 18);
-        row(`ACC    ${acc}%`, '#5fffb8', 18);
+        row(`COMBO  ${this.maxCombo}x`,              '#5fb8ff', 18);
+        row(`ACC    ${acc}%`,                        '#5fffb8', 18);
         row('',        '',         0, 4);
         row(`PF ${this.perfectCnt}  GD ${this.goodCnt}  MS ${this.missCnt}`, '#666', 14, 6);
 
@@ -843,20 +776,21 @@ class MusicScene extends Phaser.Scene {
         });
     }
 }
+
 /* =========================================================
-   Phaser 設定
+   Phaser 設定
 ========================================================= */
 const config = {
-    type: Phaser.AUTO,
-    parent: 'game-container',
-    width:  960,
-    height: 540,
-    backgroundColor: '#000000',
-    scale: {
-        mode:       Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
-    },
-    scene: [StartScene, GameScene, MusicScene]
+    type: Phaser.AUTO,
+    parent: 'game-container',
+    width:  960,
+    height: 540,
+    backgroundColor: '#000000',
+    scale: {
+        mode:       Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    },
+    scene: [StartScene, GameScene, MusicScene]
 };
 
 new Phaser.Game(config);
