@@ -1,6 +1,5 @@
-/* =========================================================
-   StartScene
-========================================================= */
+/* =====StartScene====== */
+
 class StartScene extends Phaser.Scene {
     constructor() {
         super('StartScene');
@@ -20,9 +19,8 @@ class StartScene extends Phaser.Scene {
     }
 }
 
-/* =========================================================
-   GameScene
-========================================================= */
+/* =====GameScene===== */
+
 class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
@@ -199,15 +197,6 @@ class GameScene extends Phaser.Scene {
     }
 }
 
-/* =========================================================
-   MusicScene — 手機觸控版 + Hold Note 支援
-   Hold Note 判定邏輯：
-   - 頭部按下（在 WIN_GD 內）→ 進入 holding 狀態
-   - 手指持續壓到尾部時間 → 給 PERFECT/GOOD 分
-   - 中途放開 → 立即 break（miss + combo 歸零）
-   - 頭部完全錯過（miss）→ 整條 note 作廢
-========================================================= */
-
 const MUSIC_CFG = {
     LANES:      7,
     NOTE_SPEED: 400,
@@ -383,13 +372,13 @@ class MusicScene extends Phaser.Scene {
 
             this.musicStartAudioTime = this.sound.context.currentTime;
             this.gameReady = true;
-        } catch (err) {
+        } 
+        catch (err) {
             console.error('譜面載入失敗', err);
             this.statusTxt.setText('譜面載入失敗\n' + err.message);
         }
     }
 
-    // ── update ────────────────────────────────────────────
     update() {
         if (!this.gameReady) return;
 
@@ -405,9 +394,14 @@ class MusicScene extends Phaser.Scene {
             this.gameReady = false;
             this._showResult();
         }
+
+        if (this.music && !this.music.isPlaying && this.gameReady) {
+        this.gameReady = false;
+        this._showResult();
+        }
     }
 
-    // ── 生成 Note ─────────────────────────────────────────
+    // ── 生成 Note ───
     _spawnNotes(elapsed) {
         while (
             this.noteQueue.length &&
@@ -437,17 +431,6 @@ class MusicScene extends Phaser.Scene {
         this.activeNotes.push(note);
     }
 
-    // ── 更新 Note ─────────────────────────────────────────
-    // Hold note 座標設計（世界計畫風格）：
-    //   note.y = 頭部底邊（noteTime），整塊一起移動不分離
-    //   尾部頂邊由 holdHeight（固定像素高度）決定：tailY = note.y - holdHeight
-    //
-    //   ┌──────┐ ← tailY（尾部）
-    //   │      │
-    //   └──────┘ ← note.y（頭部）
-    //   ════════  判定線
-    //
-    // holding：整塊繼續往下穿過判定線，直到尾部也過了判定線完成
     _updateNotes(elapsed) {
         const H = this.cameras.main.height;
 
@@ -458,49 +441,48 @@ class MusicScene extends Phaser.Scene {
             const timeLeft = note._noteTime - elapsed;
             note.y = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
-            if (note._state === 'holding') {
-            note.y = this.hitY; // ← 這行超重要！！！
+                if (note._state === 'holding') {
+                    note.y = this.hitY; // ← 這行超重要！！！
 
-            if (elapsed >= note._noteEndTime) {
-                this._completeHold(note);
-            }
-            continue;
-}
+                    if (elapsed >= note._noteEndTime) {
+                        this._completeHold(note);
+                    }
+                    continue;
+                }
 
-            if (note._state === 'alive' && note._noteTime < elapsed - MUSIC_CFG.WIN_GD) {
-                if (!note._isHold) {
-                    note._state = 'miss';
-                    this._onMiss();
+                if (note._state === 'alive' && note._noteTime < elapsed - MUSIC_CFG.WIN_GD) {
+                    if (!note._isHold) {
+                        note._state = 'miss';
+                        this._onMiss();
+                        note.destroy();
+                    }
+                    continue;
+                }
+
+                //    一般note
+                if (!note._isHold && note.y > H + 200) {
                     note.destroy();
                 }
-                continue;
-            }
 
-        // 一般 note
-        if (!note._isHold && note.y > H + 200) {
-            note.destroy();
-        }
+             // hold note：要看尾巴
+             if (note._isHold) {
+                const endTimeLeft = note._noteEndTime - elapsed;
+                const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
-        // hold note：要看尾巴
-        if (note._isHold) {
-            const endTimeLeft = note._noteEndTime - elapsed;
-            const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
-
-            if (tailY > H + 200) {
-                note.destroy();
-            }
-        }
+                    if (tailY > H + 200) {
+                        note.destroy();
+                    }
                 }
-
                 this.activeNotes = this.activeNotes.filter(n => n.active);
-            }
+        }
+    }
 
     // ── 繪製 Hold 長條（每幀） ────────────────────────────
     _drawHoldBodies(elapsed) {
         const g = this.holdGfx;
         g.clear();
 
-        for (const note of this.activeNotes) {
+            for (const note of this.activeNotes) {
             if (!note.active) continue;
             if (!note._isHold) continue;
             if (note._state === 'miss' || note._state === 'hit') continue;
@@ -545,7 +527,6 @@ class MusicScene extends Phaser.Scene {
                 g.fillRect(bx, tailY - 4, bw, 8);
             }
         }
-
     }
 
     // ── 判定：嘗試擊中 ────────────────────────────────────
@@ -590,13 +571,6 @@ class MusicScene extends Phaser.Scene {
                 this._onHit(100, 'GOOD', '#5fb8ff');
             }
         }
-
-       // 保險：清掉不存在的 holding
-   for (const lane in this.holdingNotes) {
-    if (!this.holdingNotes[lane]?.active) {
-        delete this.holdingNotes[lane];
-    }
-}
     }
 
     // ── Hold 自動完成（尾部到達判定線）────────────────────
