@@ -590,6 +590,13 @@ class MusicScene extends Phaser.Scene {
                 this._onHit(100, 'GOOD', '#5fb8ff');
             }
         }
+
+       // 保險：清掉不存在的 holding
+   for (const lane in this.holdingNotes) {
+    if (!this.holdingNotes[lane]?.active) {
+        delete this.holdingNotes[lane];
+    }
+}
     }
 
     // ── Hold 自動完成（尾部到達判定線）────────────────────
