@@ -442,6 +442,7 @@ const y = this.hitY
         note._state       = 'alive';   // alive | holding | hit | miss | break
 
         this.activeNotes.push(note);
+
     }
 
     // ── 更新 Note ─────────────────────────────────────────
@@ -505,23 +506,21 @@ const y = this.hitY
             const col  = MUSIC_CFG.COLORS[lane];
             const bw   = this.laneWidth * MUSIC_CFG.NOTE_W;
             const bx   = lane * this.laneWidth + (this.laneWidth - bw) / 2;
+           
             const isHolding = note._state === 'holding';
-
-            // 頭部底邊（跟著 note.y 移動）
-            const headY = note.y;
-
-            // 尾部頂邊（固定高度，整塊一起移動）
             const holdHeight = (note._noteEndTime - note._noteTime)
-                               * MUSIC_CFG.NOTE_SPEED / 1000;
+                            * MUSIC_CFG.NOTE_SPEED / 1000;
+
+            const headY = note.y;
             const tailY = headY - holdHeight;
 
-            // 只繪製畫面內的部分
-            const H = this.cameras.main.height;
-            const drawTop    = Math.max(-20, tailY);
-            const drawBottom = Math.min(H + 20, headY);
+            // ⭐ 改這裡：強制至少畫一段可見範圍
+            const drawTop = Math.max(-200, tailY);
+            const drawBottom = Math.min(this.cameras.main.height, headY);
+
             const drawHeight = drawBottom - drawTop;
             if (drawHeight <= 0) continue;
-
+            
             // 長條主體
             g.fillStyle(col, isHolding ? 0.65 : 0.35);
             g.fillRect(bx, drawTop, bw, drawHeight);
