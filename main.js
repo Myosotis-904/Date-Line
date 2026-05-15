@@ -200,8 +200,14 @@ class GameScene extends Phaser.Scene {
 }
 
 /* =========================================================
-   MusicScene — 完整修正版
+   MusicScene — 手機觸控版 + Hold Note 支援
+   Hold Note 判定邏輯：
+   - 頭部按下（在 WIN_GD 內）→ 進入 holding 狀態
+   - 手指持續壓到尾部時間 → 給 PERFECT/GOOD 分
+   - 中途放開 → 立即 break（miss + combo 歸零）
+   - 頭部完全錯過（miss）→ 整條 note 作廢
 ========================================================= */
+
 const MUSIC_CFG = {
     LANES:      7,
     NOTE_SPEED: 400,
@@ -439,10 +445,10 @@ class MusicScene extends Phaser.Scene {
             if (!note.active) continue;
 
             if (note._state === 'holding') {
-                // Hold note 頭部固定在判定線上（視覺上壓在線上）
+                // 頭部固定在判定線，長條往下縮短（尾部繼續落下由 _drawHoldBodies 處理）
                 note.y = this.hitY;
 
-                // 尾部到達判定線 → 自動完成
+                // 尾部（endTime）也到達判定線 → 自動完成
                 if (elapsed >= note._noteEndTime - MUSIC_CFG.WIN_GD) {
                     this._completeHold(note);
                     continue;
@@ -450,11 +456,11 @@ class MusicScene extends Phaser.Scene {
                 continue;
             }
 
-            // 一般移動
+            // 一般移動（頭部 = note.y）
             const timeLeft = note._noteTime - elapsed;
             note.y = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
-            // Miss：頭部超過 Good 窗口
+            // Miss：頭部超過 Good 窗口仍未按
             if (note._state === 'alive' && note._noteTime < elapsed - MUSIC_CFG.WIN_GD) {
                 note._state = 'miss';
                 this._onMiss();
@@ -462,7 +468,7 @@ class MusicScene extends Phaser.Scene {
                 continue;
             }
 
-            // 離開畫面
+            // 頭部離開畫面底部（正常不該發生，保險用）
             if (note.y > H + MUSIC_CFG.NOTE_H * 2) {
                 note.destroy();
             }
@@ -472,6 +478,13 @@ class MusicScene extends Phaser.Scene {
     }
 
     // ── 繪製 Hold 長條（每幀） ────────────────────────────
+    // 座標關係：
+    //   tailY（尾部，endTime 對應位置）在上方（y 值小）
+    //   headY（頭部，noteTime 對應位置）在下方（y 值大）
+    //   整體由上往下落，頭部先到判定線
+    // holding 中：
+    //   頭部固定在 hitY，尾部繼續往下落
+    //   長條從 tailY（仍在上方）畫到 hitY，越來越短直到消失
     _drawHoldBodies(elapsed) {
         const g = this.holdGfx;
         g.clear();
@@ -481,52 +494,53 @@ class MusicScene extends Phaser.Scene {
             if (!note._isHold) continue;
             if (note._state === 'miss' || note._state === 'hit') continue;
 
-            const lane  = note._lane;
-            const col   = MUSIC_CFG.COLORS[lane];
-            const x     = lane * this.laneWidth + 1;
-            const bw    = this.laneWidth * MUSIC_CFG.NOTE_W;
-            const bx    = lane * this.laneWidth + (this.laneWidth - bw) / 2;
+            const lane = note._lane;
+            const col  = MUSIC_CFG.COLORS[lane];
+            const bw   = this.laneWidth * MUSIC_CFG.NOTE_W;
+            const bx   = lane * this.laneWidth + (this.laneWidth - bw) / 2;
+            const cx   = lane * this.laneWidth + this.laneWidth / 2;
 
-            // 尾部 y 位置
+            // 頭部 y
+            const headY = note._state === 'holding' ? this.hitY : note.y;
+
+            // 尾部 y（endTime 距現在還有多少時間 → 換算成畫面位置）
+            // holding 時尾部繼續往下落（endTimeLeft 縮小 → tailY 逼近 hitY）
             const endTimeLeft = note._noteEndTime - elapsed;
             const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
-            // 頭部 y（holding 時固定在 hitY，否則跟著移動）
-            const headY = note._state === 'holding' ? this.hitY : note.y;
+            // tailY 必定 < headY（尾部在上，頭部在下）
+            // 如果尾部已超過 headY（極端情況），跳過
+            if (tailY >= headY) continue;
 
-            // 只畫尾部在畫面內的部分
-            const drawTailY = Math.max(-20, tailY);
-            const drawHeadY = headY;
+            // 只繪製畫面內的部分（tailY 可能超出畫面頂部）
+            const drawTop    = Math.max(-MUSIC_CFG.NOTE_H, tailY);
+            const drawBottom = headY;
+            const drawHeight = drawBottom - drawTop;
+            if (drawHeight <= 0) continue;
 
-            if (drawTailY >= drawHeadY) continue; // 尾部已過判定線，不畫
+            const isHolding = note._state === 'holding';
 
-            // hold 長條主體（半透明彩色）
-            g.fillStyle(col, note._state === 'holding' ? 0.55 : 0.30);
-            g.fillRect(bx, drawTailY, bw, drawHeadY - drawTailY);
+            // 長條主體
+            g.fillStyle(col, isHolding ? 0.55 : 0.30);
+            g.fillRect(bx, drawTop, bw, drawHeight);
 
             // 長條邊框
-            g.lineStyle(1, col, note._state === 'holding' ? 0.9 : 0.5);
-            g.strokeRect(bx, drawTailY, bw, drawHeadY - drawTailY);
+            g.lineStyle(1, col, isHolding ? 0.9 : 0.5);
+            g.strokeRect(bx, drawTop, bw, drawHeight);
 
-            // 尾部小圓（結尾指示）
-            if (drawTailY > -10) {
-                g.fillStyle(col, 0.9);
-                g.fillCircle(
-                    lane * this.laneWidth + this.laneWidth / 2,
-                    drawTailY,
-                    6
-                );
+            // 尾部小圓（在畫面內才畫）
+            if (tailY > -MUSIC_CFG.NOTE_H) {
+                g.fillStyle(col, 0.95);
+                g.fillCircle(cx, tailY, 7);
+                // 尾部圓框
+                g.lineStyle(1.5, 0xffffff, 0.5);
+                g.strokeCircle(cx, tailY, 7);
             }
 
-            // holding 時整條額外發光效果（中心亮線）
-            if (note._state === 'holding') {
+            // holding 時中心發光帶
+            if (isHolding) {
                 g.fillStyle(0xffffff, 0.15);
-                g.fillRect(
-                    bx + bw * 0.3,
-                    drawTailY,
-                    bw * 0.4,
-                    drawHeadY - drawTailY
-                );
+                g.fillRect(bx + bw * 0.3, drawTop, bw * 0.4, drawHeight);
             }
         }
     }
