@@ -405,13 +405,6 @@ class MusicScene extends Phaser.Scene {
             this.gameReady = false;
             this._showResult();
         }
-
-       // 保險：清掉不存在的 holding
-   for (const lane in this.holdingNotes) {
-    if (!this.holdingNotes[lane]?.active) {
-        delete this.holdingNotes[lane];
-    }
-}
     }
 
     // ── 生成 Note ─────────────────────────────────────────
