@@ -421,7 +421,14 @@ class MusicScene extends Phaser.Scene {
         const x      = this.laneWidth * data.lane + this.laneWidth / 2;
         const nw     = this.laneWidth * MUSIC_CFG.NOTE_W;
         const timeLeft = data.time - elapsed;
-        const y      = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
+        const holdHeight = data.isHold
+    ? (data.endTime - data.time) * MUSIC_CFG.NOTE_SPEED / 1000
+    : 0;
+
+// ⭐ 關鍵：整塊往下補一段高度
+const y = this.hitY
+    - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000
+    + holdHeight;
 
         // 頭部矩形（一般 note 和 hold note 共用）
         const note = this.add.rectangle(x, y, nw, MUSIC_CFG.NOTE_H,
