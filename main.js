@@ -277,7 +277,7 @@ class MusicScene extends Phaser.Scene {
         // 確保 holdGfx 在 note 之下（先加入場景）
         // 注意：Phaser 的 depth 預設都是 0，後加入的在上層
         // 我們讓 holdGfx depth = -1，note rect depth = 0
-        this.holdGfx.setDepth(-1);
+        this.holdGfx.setDepth(1);
 
         // ── 按鍵標籤 ──
         this._keyLabels = MUSIC_CFG.KEY_LABELS.map((label, i) =>
@@ -421,14 +421,7 @@ class MusicScene extends Phaser.Scene {
         const x      = this.laneWidth * data.lane + this.laneWidth / 2;
         const nw     = this.laneWidth * MUSIC_CFG.NOTE_W;
         const timeLeft = data.time - elapsed;
-        const holdHeight = data.isHold
-    ? (data.endTime - data.time) * MUSIC_CFG.NOTE_SPEED / 1000
-    : 0;
-
-// ⭐ 關鍵：整塊往下補一段高度
-const y = this.hitY
-    - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000
-    + holdHeight;
+        const y      = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
         // 頭部矩形（一般 note 和 hold note 共用）
         const note = this.add.rectangle(x, y, nw, MUSIC_CFG.NOTE_H,
@@ -442,7 +435,6 @@ const y = this.hitY
         note._state       = 'alive';   // alive | holding | hit | miss | break
 
         this.activeNotes.push(note);
-
     }
 
     // ── 更新 Note ─────────────────────────────────────────
@@ -467,30 +459,41 @@ const y = this.hitY
             note.y = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
             if (note._state === 'holding') {
-                // 尾部（endTime）也過判定線 → 自動完成
-                if (elapsed >= note._noteEndTime - MUSIC_CFG.WIN_GD) {
-                    this._completeHold(note);
-                    continue;
+            note.y = this.hitY; // ← 這行超重要！！！
+
+            if (elapsed >= note._noteEndTime) {
+                this._completeHold(note);
+            }
+            continue;
+}
+
+            if (note._state === 'alive' && note._noteTime < elapsed - MUSIC_CFG.WIN_GD) {
+                if (!note._isHold) {
+                    note._state = 'miss';
+                    this._onMiss();
+                    note.destroy();
                 }
                 continue;
             }
 
-            // alive：頭部超過 Good 窗口仍未按 → Miss
-            if (note._state === 'alive' && note._noteTime < elapsed - MUSIC_CFG.WIN_GD) {
-                note._state = 'miss';
-                this._onMiss();
-                note.destroy();
-                continue;
-            }
+        // 一般 note
+        if (!note._isHold && note.y > H + 200) {
+            note.destroy();
+        }
 
-            // 整塊（含長條）離開畫面底部
-            if (note.y > H + 200) {
+        // hold note：要看尾巴
+        if (note._isHold) {
+            const endTimeLeft = note._noteEndTime - elapsed;
+            const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
+
+            if (tailY > H + 200) {
                 note.destroy();
             }
         }
+                }
 
-        this.activeNotes = this.activeNotes.filter(n => n.active);
-    }
+                this.activeNotes = this.activeNotes.filter(n => n.active);
+            }
 
     // ── 繪製 Hold 長條（每幀） ────────────────────────────
     _drawHoldBodies(elapsed) {
@@ -506,21 +509,22 @@ const y = this.hitY
             const col  = MUSIC_CFG.COLORS[lane];
             const bw   = this.laneWidth * MUSIC_CFG.NOTE_W;
             const bx   = lane * this.laneWidth + (this.laneWidth - bw) / 2;
-           
             const isHolding = note._state === 'holding';
-            const holdHeight = (note._noteEndTime - note._noteTime)
-                            * MUSIC_CFG.NOTE_SPEED / 1000;
 
+            // 頭部（noteTime）
             const headY = note.y;
-            const tailY = headY - holdHeight;
 
-            // ⭐ 改這裡：強制至少畫一段可見範圍
-            const drawTop = Math.max(-200, tailY);
-            const drawBottom = Math.min(this.cameras.main.height, headY);
+            // 尾部（endTime）
+            const endTimeLeft = note._noteEndTime - elapsed;
+            const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
+            // 只繪製畫面內的部分
+            const H = this.cameras.main.height;
+            const drawTop    = Math.max(-20, tailY);
+            const drawBottom = Math.min(H + 20, headY);
             const drawHeight = drawBottom - drawTop;
             if (drawHeight <= 0) continue;
-            
+
             // 長條主體
             g.fillStyle(col, isHolding ? 0.65 : 0.35);
             g.fillRect(bx, drawTop, bw, drawHeight);
@@ -541,6 +545,7 @@ const y = this.hitY
                 g.fillRect(bx, tailY - 4, bw, 8);
             }
         }
+
     }
 
     // ── 判定：嘗試擊中 ────────────────────────────────────
