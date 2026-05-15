@@ -438,17 +438,28 @@ class MusicScene extends Phaser.Scene {
     }
 
     // ── 更新 Note ─────────────────────────────────────────
+    // Hold note 座標設計（世界計畫風格）：
+    //   note.y = 頭部底邊（noteTime），整塊一起移動不分離
+    //   尾部頂邊由 holdHeight（固定像素高度）決定：tailY = note.y - holdHeight
+    //
+    //   ┌──────┐ ← tailY（尾部）
+    //   │      │
+    //   └──────┘ ← note.y（頭部）
+    //   ════════  判定線
+    //
+    // holding：整塊繼續往下穿過判定線，直到尾部也過了判定線完成
     _updateNotes(elapsed) {
         const H = this.cameras.main.height;
 
         for (const note of this.activeNotes) {
             if (!note.active) continue;
 
-            if (note._state === 'holding') {
-                // 頭部固定在判定線，長條往下縮短（尾部繼續落下由 _drawHoldBodies 處理）
-                note.y = this.hitY;
+            // 所有狀態都照 noteTime 正常移動
+            const timeLeft = note._noteTime - elapsed;
+            note.y = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
 
-                // 尾部（endTime）也到達判定線 → 自動完成
+            if (note._state === 'holding') {
+                // 尾部（endTime）也過判定線 → 自動完成
                 if (elapsed >= note._noteEndTime - MUSIC_CFG.WIN_GD) {
                     this._completeHold(note);
                     continue;
@@ -456,11 +467,7 @@ class MusicScene extends Phaser.Scene {
                 continue;
             }
 
-            // 一般移動（頭部 = note.y）
-            const timeLeft = note._noteTime - elapsed;
-            note.y = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
-
-            // Miss：頭部超過 Good 窗口仍未按
+            // alive：頭部超過 Good 窗口仍未按 → Miss
             if (note._state === 'alive' && note._noteTime < elapsed - MUSIC_CFG.WIN_GD) {
                 note._state = 'miss';
                 this._onMiss();
@@ -468,8 +475,8 @@ class MusicScene extends Phaser.Scene {
                 continue;
             }
 
-            // 頭部離開畫面底部（正常不該發生，保險用）
-            if (note.y > H + MUSIC_CFG.NOTE_H * 2) {
+            // 整塊（含長條）離開畫面底部
+            if (note.y > H + 200) {
                 note.destroy();
             }
         }
@@ -478,13 +485,6 @@ class MusicScene extends Phaser.Scene {
     }
 
     // ── 繪製 Hold 長條（每幀） ────────────────────────────
-    // 座標關係：
-    //   tailY（尾部，endTime 對應位置）在上方（y 值小）
-    //   headY（頭部，noteTime 對應位置）在下方（y 值大）
-    //   整體由上往下落，頭部先到判定線
-    // holding 中：
-    //   頭部固定在 hitY，尾部繼續往下落
-    //   長條從 tailY（仍在上方）畫到 hitY，越來越短直到消失
     _drawHoldBodies(elapsed) {
         const g = this.holdGfx;
         g.clear();
@@ -498,49 +498,41 @@ class MusicScene extends Phaser.Scene {
             const col  = MUSIC_CFG.COLORS[lane];
             const bw   = this.laneWidth * MUSIC_CFG.NOTE_W;
             const bx   = lane * this.laneWidth + (this.laneWidth - bw) / 2;
-            const cx   = lane * this.laneWidth + this.laneWidth / 2;
+            const isHolding = note._state === 'holding';
 
-            // 頭部 y
-            const headY = note._state === 'holding' ? this.hitY : note.y;
+            // 頭部底邊（跟著 note.y 移動）
+            const headY = note.y;
 
-            // 尾部 y（endTime 距現在還有多少時間 → 換算成畫面位置）
-            // holding 時尾部繼續往下落（endTimeLeft 縮小 → tailY 逼近 hitY）
-            const endTimeLeft = note._noteEndTime - elapsed;
-            const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
+            // 尾部頂邊（固定高度，整塊一起移動）
+            const holdHeight = (note._noteEndTime - note._noteTime)
+                               * MUSIC_CFG.NOTE_SPEED / 1000;
+            const tailY = headY - holdHeight;
 
-            // tailY 必定 < headY（尾部在上，頭部在下）
-            // 如果尾部已超過 headY（極端情況），跳過
-            if (tailY >= headY) continue;
-
-            // 只繪製畫面內的部分（tailY 可能超出畫面頂部）
-            const drawTop    = Math.max(-MUSIC_CFG.NOTE_H, tailY);
-            const drawBottom = headY;
+            // 只繪製畫面內的部分
+            const H = this.cameras.main.height;
+            const drawTop    = Math.max(-20, tailY);
+            const drawBottom = Math.min(H + 20, headY);
             const drawHeight = drawBottom - drawTop;
             if (drawHeight <= 0) continue;
 
-            const isHolding = note._state === 'holding';
-
             // 長條主體
-            g.fillStyle(col, isHolding ? 0.55 : 0.30);
+            g.fillStyle(col, isHolding ? 0.65 : 0.35);
             g.fillRect(bx, drawTop, bw, drawHeight);
 
             // 長條邊框
-            g.lineStyle(1, col, isHolding ? 0.9 : 0.5);
+            g.lineStyle(1.5, col, isHolding ? 1.0 : 0.55);
             g.strokeRect(bx, drawTop, bw, drawHeight);
-
-            // 尾部小圓（在畫面內才畫）
-            if (tailY > -MUSIC_CFG.NOTE_H) {
-                g.fillStyle(col, 0.95);
-                g.fillCircle(cx, tailY, 7);
-                // 尾部圓框
-                g.lineStyle(1.5, 0xffffff, 0.5);
-                g.strokeCircle(cx, tailY, 7);
-            }
 
             // holding 時中心發光帶
             if (isHolding) {
-                g.fillStyle(0xffffff, 0.15);
-                g.fillRect(bx + bw * 0.3, drawTop, bw * 0.4, drawHeight);
+                g.fillStyle(0xffffff, 0.18);
+                g.fillRect(bx + bw * 0.25, drawTop, bw * 0.5, drawHeight);
+            }
+
+            // 尾部頂邊亮條（在畫面內才畫）
+            if (tailY > -10) {
+                g.fillStyle(isHolding ? 0xffffff : col, isHolding ? 0.9 : 0.85);
+                g.fillRect(bx, tailY - 4, bw, 8);
             }
         }
     }
@@ -840,7 +832,6 @@ class MusicScene extends Phaser.Scene {
         });
     }
 }
-
 /* =========================================================
    Phaser 設定
 ========================================================= */
