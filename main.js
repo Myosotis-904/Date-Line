@@ -221,6 +221,10 @@ class MusicScene extends Phaser.Scene {
     }
 
     create() {
+
+        this.isPreparing = true;
+        this.gameReady = false;
+
         this.input.addPointer(9);
 
         const W = this.cameras.main.width;
@@ -358,7 +362,13 @@ class MusicScene extends Phaser.Scene {
             });
         });
 
+        this.speedMultiplier = 1.0;
+
+        this.timingOffset = parseInt(localStorage.getItem('timingOffset')) || 0;
+       
         this._initAsync();
+
+        this._createPrepareUI();
     }
 
     async _initAsync() {
@@ -368,21 +378,121 @@ class MusicScene extends Phaser.Scene {
             this.statusTxt.setVisible(false);
 
             this.music = this.sound.add('music');
-            this.music.play();
 
             this.musicStartAudioTime = this.sound.context.currentTime;
-            this.gameReady = true;
+            this.isPreparing = true;
         } 
         catch (err) {
             console.error('譜面載入失敗', err);
             this.statusTxt.setText('譜面載入失敗\n' + err.message);
         }
+        this.isLoaded = true;
+    }
+
+    _createPrepareUI() {
+        const W = this.cameras.main.width;
+        const H = this.cameras.main.height;
+
+        this.prepareUI = this.add.container(0, 0);
+
+        const bg = this.add.rectangle(W/2, H/2, W, H, 0x000000, 0.7);
+        this.prepareUI.add(bg);
+
+        const title = this.add.text(W/2, H*0.2, '準備開始', {
+            fontSize: '28px',
+            fill: '#fff'
+        }).setOrigin(0.5);
+        this.prepareUI.add(title);
+
+        // 👉 滑桿也要自己改成回傳物件再 add 進來（或直接寫在這裡）
+
+        this.timingText = this.add.text(W/2, H*0.55, 'Timing: 0 ms')
+            .setOrigin(0.5);
+        this.prepareUI.add(this.timingText);
+
+        const startBtn = this.add.text(W/2, H*0.75, '開始遊戲', {
+            fontSize: '22px',
+            fill: '#fff',
+            backgroundColor: '#333',
+            padding: { x: 20, y: 10 }
+        })
+        .setOrigin(0.5)
+        .setInteractive()
+        .on('pointerdown', () => this._startGame());
+
+        this.prepareUI.add(startBtn);
+
+        const slider = this._createSpeedSlider(W/2 - 100, H*0.4);
+        slider.forEach(obj => this.prepareUI.add(obj));
+
+        const calibrateBtn = this.add.text(W/2, H*0.65, '校準 Timing', {
+        fontSize: '20px',
+        fill: '#fff',
+        backgroundColor: '#555',
+        padding: { x: 16, y: 8 }
+        })
+        .setOrigin(0.5)
+        .setInteractive()
+        .on('pointerdown', () => {
+            this.scene.start('CalibrationScene');
+        });
+
+        this.prepareUI.add(calibrateBtn);
+
+        this.timingText.setText(`Timing: ${this.timingOffset} ms`);
+    }
+
+   _createSpeedSlider(x, y) {
+        const w = 200;
+
+        const bg = this.add.rectangle(x, y, w, 6, 0x444444)
+            .setOrigin(0, 0.5);
+
+        const handle = this.add.circle(x + w/2, y, 10, 0xffffff)
+            .setInteractive({ draggable: true });
+
+        const text = this.add.text(x, y - 30, 'Speed: 1.00x');
+
+        this.input.setDraggable(handle);
+
+        this.input.off('drag');
+
+        this.input.on('drag', (pointer, obj, dragX) => {
+            if (obj !== handle) return;
+
+            const clamped = Phaser.Math.Clamp(dragX, x, x + w);
+            obj.x = clamped;
+
+            const t = (clamped - x) / w;
+            this.speedMultiplier = 0.5 + t * 1.5;
+
+            text.setText(`Speed: ${this.speedMultiplier.toFixed(2)}x`);
+        });
+
+        return [bg, handle, text]; // 👈 回傳！
+    }
+
+   _startGame() {
+
+        if (!this.noteQueue.length) {
+            console.log('加載中...');
+            return;
+        }
+        this.prepareUI.destroy(); 
+        this.input.off('drag');
+
+        this.music.play();
+        this.musicStartAudioTime = this.sound.context.currentTime;
+
+        this.isPreparing = false;
+        this.gameReady = true;
     }
 
     update() {
+        if (this.isPreparing) return;
         if (!this.gameReady) return;
-
-        const elapsed = (this.sound.context.currentTime - this.musicStartAudioTime) * 1000;
+        
+        const elapsed = (this.sound.context.currentTime - this.musicStartAudioTime) * 1000 + this.timingOffset;
 
         this._spawnNotes(elapsed);
         this._updateNotes(elapsed);
@@ -415,7 +525,7 @@ class MusicScene extends Phaser.Scene {
         const x      = this.laneWidth * data.lane + this.laneWidth / 2;
         const nw     = this.laneWidth * MUSIC_CFG.NOTE_W;
         const timeLeft = data.time - elapsed;
-        const y      = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
+        const y      = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
 
         // 頭部矩形（一般 note 和 hold note 共用）
         const note = this.add.rectangle(x, y, nw, MUSIC_CFG.NOTE_H,
@@ -439,7 +549,7 @@ class MusicScene extends Phaser.Scene {
 
             // 所有狀態都照 noteTime 正常移動
             const timeLeft = note._noteTime - elapsed;
-            note.y = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
+            note.y = this.hitY - timeLeft * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
 
                 if (note._state === 'holding') {
                     note.y = this.hitY; // ← 這行超重要！！！
@@ -467,7 +577,7 @@ class MusicScene extends Phaser.Scene {
              // hold note：要看尾巴
              if (note._isHold) {
                 const endTimeLeft = note._noteEndTime - elapsed;
-                const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
+                const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
 
                     if (tailY > H + 200) {
                         note.destroy();
@@ -498,7 +608,7 @@ class MusicScene extends Phaser.Scene {
 
             // 尾部（endTime）
             const endTimeLeft = note._noteEndTime - elapsed;
-            const tailY = this.hitY - endTimeLeft * MUSIC_CFG.NOTE_SPEED / 1000;
+            const tailY = this.hitY - endTimeLeft *MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
 
             // 只繪製畫面內的部分
             const H = this.cameras.main.height;
@@ -536,7 +646,7 @@ class MusicScene extends Phaser.Scene {
         // 如果這個 lane 已有 holding，不重複觸發
         if (this.holdingNotes[lane]) return;
 
-        const elapsed = (this.sound.context.currentTime - this.musicStartAudioTime) * 1000;
+        const elapsed = (this.sound.context.currentTime - this.musicStartAudioTime) * 1000 + this.timingOffset;
 
         let best = null, bestDiff = Infinity;
         for (const n of this.activeNotes) {
@@ -824,6 +934,134 @@ class MusicScene extends Phaser.Scene {
         });
     }
 }
+
+class CalibrationScene extends Phaser.Scene {
+    constructor() {
+        super('CalibrationScene');
+    }
+
+    preload() {
+        this.load.audio('tick', 'assets/tick.wav');
+    }
+
+    create() {
+        const W = this.cameras.main.width;
+        const H = this.cameras.main.height;
+
+        this.offsetSamples = [];
+        this.isRunning = false;
+
+        this.bpm = 120;
+        this.interval = 60000 / this.bpm;
+
+        this.text = this.add.text(W/2, H*0.3, '點擊節拍進行校準', {
+            fontSize: '20px',
+            fill: '#fff'
+        }).setOrigin(0.5);
+
+        this.resultText = this.add.text(W/2, H*0.6, '', {
+            fontSize: '18px',
+            fill: '#aaffaa'
+        }).setOrigin(0.5);
+
+        const startBtn = this.add.text(W/2, H*0.8, '開始校準', {
+            fontSize: '22px',
+            backgroundColor: '#333',
+            padding: { x: 20, y: 10 }
+        })
+        .setOrigin(0.5)
+        .setInteractive()
+        .on('pointerdown', () => this.startCalibration());
+
+        this.input.on('pointerdown', () => {
+        if (!this.isRunning) return;
+
+        const now = this.sound.context.currentTime * 1000;
+
+        // 找最近的拍點
+        const beatIndex = Math.round((now - this.startTime) / this.interval);
+        const nearestBeat = this.startTime + beatIndex * this.interval;
+
+        const diff = now - nearestBeat;
+
+        this.offsetSamples.push(diff);
+
+        this._flash();
+    });
+
+        const finishBtn = this.add.text(W/2, H*0.9, '完成', {
+            fontSize: '20px',
+            backgroundColor: '#444',
+            padding: { x: 20, y: 10 }
+        })
+        .setOrigin(0.5)
+        .setInteractive()
+        .on('pointerdown', () => this.finish());
+
+    }
+
+    startCalibration() {
+        // 用 pointerdown 觸發音訊解鎖
+        this.input.once('pointerdown', () => {
+            this.sound.context.resume();
+        });
+
+        this.isRunning = true;
+        this.offsetSamples = [];
+
+        if (this.timer) this.timer.remove();
+
+        this.timer = this.time.addEvent({
+            delay: this.interval,
+            loop: true,
+            callback: () => {
+                this.playBeat();
+            }
+        });
+
+        this.startTime = this.sound.context.currentTime * 1000;
+    }
+
+    playBeat() {
+        this.sound.play('tick');
+
+        this.lastBeatTime = this.sound.context.currentTime * 1000;
+
+        this._flash();
+    }
+
+    _flash() {
+        const W = this.cameras.main.width;
+        const H = this.cameras.main.height;
+
+        const flash = this.add.rectangle(W/2, H/2, 200, 200, 0xffffff)
+            .setAlpha(0.8);
+
+        this.tweens.add({
+            targets: flash,
+            alpha: 0,
+            duration: 200,
+            onComplete: () => flash.destroy()
+        });
+    }
+
+    finish() {
+        if (this.offsetSamples.length === 0) return;
+
+        const avg = this.offsetSamples.reduce((a, b) => a + b, 0) / this.offsetSamples.length;
+        const offset = Math.round(avg);
+
+        this.resultText.setText(`校準結果: ${offset} ms`);
+        localStorage.setItem('timingOffset', offset);
+
+        this.isRunning = false;
+
+        if (this.timer) this.timer.remove(); // 停止節拍
+    }
+    
+}
+
+
 /* =========================================================
    Phaser 設定
 ========================================================= */
@@ -837,7 +1075,7 @@ const config = {
         mode:       Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-    scene: [StartScene, GameScene, MusicScene]
+    scene: [StartScene, GameScene, MusicScene, CalibrationScene]
 };
 
 new Phaser.Game(config);
