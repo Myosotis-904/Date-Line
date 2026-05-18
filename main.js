@@ -1,7 +1,7 @@
 'use strict';
 const API = {
-    BUG_URL: 'https://script.google.com/macros/s/AKfycbwkTaJFuFGzflRpwJDs9aVXTSyunnnF6machRYA4YARCxLry11MK-dqW0R07wwhyLhfsg/exec',
-    MSG_URL: 'https://script.google.com/macros/s/AKfycbwkTaJFuFGzflRpwJDs9aVXTSyunnnF6machRYA4YARCxLry11MK-dqW0R07wwhyLhfsg/exec',
+    BUG_URL: 'https://script.google.com/macros/s/AKfycbwM2J5p6scneB-d7DpeQVa-usWjEj0n7nMHP79J5JHuGR_Q1OlQSbsB5sGpD9igY82JEQ/exec',
+    MSG_URL: 'https://script.google.com/macros/s/AKfycbwM2J5p6scneB-d7DpeQVa-usWjEj0n7nMHP79J5JHuGR_Q1OlQSbsB5sGpD9igY82JEQ/exec',
 };
 
 const GSheets = {
@@ -60,8 +60,8 @@ const LANDMARKS = [
         colW: 150, colH: 110,
         nearDist: 200, interactDist: 240,
         dialog: {
-            title: '換日線舞台',
-            lines: ['這是主要演出場地。', '靠近後可以進入音樂節奏遊戲！'],
+            title: '舞台(5/27-5/29 畢業歌音樂會)',
+            lines: ['這是主要演出場地。', '進入舞台可遊玩音樂節奏遊戲！'],
             action: 'enter',
             actionLabel: '▶  進入舞台',
         },
@@ -85,7 +85,7 @@ const LANDMARKS = [
         },
     },
     {
-        key: 'sign', x: 700, y: 2180, scale: 0.8,
+        key: 'sign', x: 540, y: 2090, scale: 0.6,
         colW: 40, colH: 40,
         nearDist: 140, interactDist: 180,
         dialog: {
@@ -104,7 +104,7 @@ const LANDMARKS = [
         colW: 35, colH: 50,
         nearDist: 160, interactDist: 200,
         dialog: {
-            title: '🐇 綠兔子（Bug 回報）',
+            title: '可疑的綠色兔子',
             lines: ['發現 bug 或有建議嗎？', '點下面填寫回報，我會努力修修看:)'],
             action: 'bug_report',
             actionLabel: '📝 填寫回報',
@@ -112,12 +112,12 @@ const LANDMARKS = [
     },
     // ── [G2] 留言板地標（信箱，放在地圖某角落）──
     {
-        key: 'mailbox', x: 900, y: 2200, scale: 1.0,
+        key: 'mailbox', x: 900, y: 2100, scale: 0.2,
         colW: 40, colH: 55,
         nearDist: 160, interactDist: 200,
         dialog: {
-            title: '神奇海螺(留言板)',
-            lines: ['為什麼不告訴神奇海螺呢?',' ', '(神奇海螺會把秘密告訴所有人。'],
+            title: '巨大神奇海螺(留言板)',
+            lines: ['為什麼不告訴神奇海螺呢?',' ', '(神奇海螺會把秘密告訴所有人。)'],
             action: 'guestbook',
             actionLabel: '💬 開啟留言板',
         },
