@@ -228,6 +228,7 @@ const MUSIC_CFG = {
 ================================================================ */
 class StartScene extends Phaser.Scene {
     constructor() { super('StartScene'); }
+    preload(){this.load.image('logo','assets/logo.png');}
 
     create() {
         const W = this.scale.width, H = this.scale.height;
