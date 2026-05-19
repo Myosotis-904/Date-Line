@@ -4,6 +4,19 @@ const API = {
     MSG_URL: 'https://script.google.com/macros/s/AKfycbwM2J5p6scneB-d7DpeQVa-usWjEj0n7nMHP79J5JHuGR_Q1OlQSbsB5sGpD9igY82JEQ/exec',
 };
 
+/* ================================================================
+   [iOS-FIX-1] 安全的 localStorage 存取封裝
+   iOS Safari 私密模式下 localStorage 會拋出例外
+================================================================ */
+const SafeStorage = {
+    getItem(key) {
+        try { return localStorage.getItem(key); } catch(e) { return null; }
+    },
+    setItem(key, value) {
+        try { localStorage.setItem(key, value); } catch(e) { /* silent fail */ }
+    },
+};
+
 const GSheets = {
     async post(url, data) {
         if (!url || url.startsWith('YOUR_')) {
@@ -228,25 +241,22 @@ const MUSIC_CFG = {
 ================================================================ */
 class StartScene extends Phaser.Scene {
     constructor() { super('StartScene'); }
-    preload(){this.load.image('logo','assets/logo.png');}
+
+    preload() {
+    this.load.image('start_bg', 'assets/start_bg.png'); 
+    }
 
     create() {
         const W = this.scale.width, H = this.scale.height;
-        this.add.rectangle(W / 2, H / 2, W, H, 0x07070f);
-        const g = this.add.graphics();
-        g.lineStyle(0.5, 0x1e1860, 0.45);
-        for (let x = 0; x < W; x += 44) g.lineBetween(x, 0, x, H);
-        for (let y = 0; y < H; y += 44) g.lineBetween(0, y, W, y);
 
-        this.add.text(W / 2, H / 2 - 58, '換日線', {
-            fontSize: '44px', fill: '#d4caff',
-            fontFamily: "'Noto Sans TC', monospace", letterSpacing: 14,
-        }).setOrigin(0.5);
-        this.add.text(W / 2, H / 2 - 14, 'D A T E L I N E', {
+        this.add.image(W/2-5, H/2, 'start_bg')
+        .setDisplaySize(W, H);
+
+        this.add.text(W / 2, H * 0.578 , 'D A T E L I N E', {
             fontSize: '13px', fill: '#3d3470', fontFamily: 'monospace', letterSpacing: 7,
         }).setOrigin(0.5);
 
-        const hint = this.add.text(W / 2, H / 2 + 62, '觸碰或按任意鍵開始', {
+        const hint = this.add.text(W / 2, H * 0.75 , '觸碰或按任意鍵開始', {
             fontSize: '20px', fill: '#a5e8ff',
             fontFamily: "'Noto Sans TC', monospace", letterSpacing: 3,
         }).setOrigin(0.5);
@@ -872,6 +882,11 @@ class MusicScene extends Phaser.Scene {
     }
 
     create() {
+        /* ── [iOS-FIX-2] 強制 resume AudioContext（iOS Safari 需要用戶手勢後才會啟動）── */
+        if (this.sound.context && this.sound.context.state === 'suspended') {
+            this.sound.context.resume().catch(() => {});
+        }
+
         this.bg = this.add.image(
             this.cameras.main.width/2, this.cameras.main.height/2, 'ui_bg'
         ).setDisplaySize(this.cameras.main.width, this.cameras.main.height);
@@ -890,6 +905,9 @@ class MusicScene extends Phaser.Scene {
         this.perfectCnt=0; this.goodCnt=0; this.missCnt=0;
         this.musicStartAudioTime=0;
         this.touchLanes={}; this.holdingNotes={};
+
+        /* ── [iOS-FIX-3] 記錄每個 pointer 的按下時間，防止 pointercancel 誤判 ── */
+        this._pointerDownTime = {};
 
         this.add.rectangle(W/2,H/2,W,H,0x07070f);
         this.laneGfx=this.add.graphics(); this._drawLanes();
@@ -918,21 +936,51 @@ class MusicScene extends Phaser.Scene {
                 // PlayerState 已在進入時存好，GameScene 的 create 會自動讀取
             });
 
-        this.input.on('pointerdown',(ptr)=>{
-            if(!this.gameReady)return;
-            const lane=this._getLane(ptr.x); if(lane===-1)return;
-            this.touchLanes[ptr.id]=lane; this._tryHit(lane,ptr.id); this._drawKeys();
+        /* ── [iOS-FIX-3] 觸控事件：防止 pointercancel 在按下後立刻觸發誤判 ── */
+        this.input.on('pointerdown', (ptr) => {
+            if (!this.gameReady) return;
+            const lane = this._getLane(ptr.x);
+            if (lane === -1) return;
+            this._pointerDownTime[ptr.id] = this.time.now;
+            this.touchLanes[ptr.id] = lane;
+            this._tryHit(lane, ptr.id);
+            this._drawKeys();
         });
-        this.input.on('pointerup',(ptr)=>{
-            const lane=this.touchLanes[ptr.id];
-            if(lane!==undefined)this._tryHoldRelease(lane,false);
-            delete this.touchLanes[ptr.id]; this._drawKeys();
+
+        this.input.on('pointerup', (ptr) => {
+            const lane = this.touchLanes[ptr.id];
+            if (lane !== undefined) this._tryHoldRelease(lane, false);
+            delete this.touchLanes[ptr.id];
+            delete this._pointerDownTime[ptr.id];
+            this._drawKeys();
         });
-        this.input.on('pointercancel',(ptr)=>{
-            const lane=this.touchLanes[ptr.id];
-            if(lane!==undefined)this._tryHoldRelease(lane,false);
-            delete this.touchLanes[ptr.id]; this._drawKeys();
+
+        /*
+         * [iOS-FIX-3] pointercancel 修正：
+         * iOS Safari 在多指觸控或手勢衝突時會立刻送出 pointercancel。
+         * 若按下後不到 80ms 就收到 cancel，視為誤觸，不計 miss，
+         * 改為靜默解除（不呼叫 _tryHoldRelease，避免計分錯誤）。
+         */
+        this.input.on('pointercancel', (ptr) => {
+            const downTime = this._pointerDownTime[ptr.id];
+            const elapsed  = downTime !== undefined ? (this.time.now - downTime) : 999;
+
+            if (elapsed < 80) {
+                // 太短，iOS 誤發的 cancel，靜默清除不計分
+                delete this.touchLanes[ptr.id];
+                delete this._pointerDownTime[ptr.id];
+                this._drawKeys();
+                return;
+            }
+
+            // 真實的 cancel（例如來電打斷），按正常流程處理
+            const lane = this.touchLanes[ptr.id];
+            if (lane !== undefined) this._tryHoldRelease(lane, false);
+            delete this.touchLanes[ptr.id];
+            delete this._pointerDownTime[ptr.id];
+            this._drawKeys();
         });
+
         this.scale.on('resize',(gs)=>{
             const nW=gs.width,nH=gs.height;
             this.laneWidth=nW/this.laneCount; this.hitY=nH*MUSIC_CFG.HIT_RATIO; this.keyH=nH*MUSIC_CFG.KEY_RATIO;
@@ -941,7 +989,7 @@ class MusicScene extends Phaser.Scene {
         });
 
         this.speedMultiplier=1.0;
-        this.timingOffset=parseInt(localStorage.getItem('timingOffset'))||0;
+        this.timingOffset=parseInt(SafeStorage.getItem('timingOffset'))||0; // [iOS-FIX-1]
         this._initAsync(); this._createPrepareUI();
     }
 
@@ -1003,7 +1051,7 @@ class MusicScene extends Phaser.Scene {
         const calibCY = (calibY1 + calibY2) / 2;
 
         // 目前 offset 文字（顯示在格子空白處，右側）
-        const savedOfs = parseInt(localStorage.getItem('timingOffset')) || 0;
+        const savedOfs = parseInt(SafeStorage.getItem('timingOffset')) || 0; // [iOS-FIX-1]
         this.calibOfsText = this.add.text(
             calibX2 - 40, calibY1 +40,
             `${savedOfs > 0 ? '+' : ''}${savedOfs} ms`,
@@ -1059,9 +1107,9 @@ class MusicScene extends Phaser.Scene {
         ).setOrigin(0.5, 0).setDepth(52);
 
         // 滑桿
-        const slY   = speedCY + 14;
-        const slX0  = speedX1 + 14;
-        const slLen = speedX2 - speedX1 - 28;
+        const slY   = speedCY - 20;
+        const slX0  = speedX1 + 87;
+        const slLen = speedX2 - speedX1 - 150;
 
         const slTrackG = this.add.graphics().setDepth(52);
         slTrackG.lineStyle(3, 0x4a4d78, 1);
@@ -1104,7 +1152,7 @@ class MusicScene extends Phaser.Scene {
            ③ Start 白色格子
            位置：x: 67%~87%  y: 71%~86%
         ════════════════════════════════════ */
-        const startX1 = W * 0.665, startX2 = W * 0.875;
+        const startX1 = W * 0.685, startX2 = W * 0.895;
         const startY1 = H * 0.705, startY2 = H * 0.865;
         const startCX = (startX1 + startX2) / 2;
         const startCY = (startY1 + startY2) / 2;
@@ -1147,11 +1195,25 @@ class MusicScene extends Phaser.Scene {
             duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
         });
     }
+
     _startGame() {
         if(!this.noteQueue.length){console.log('加載中...');return;}
         this.prepareUI.destroy(); this.input.off('drag');
-        this.music.play(); this.musicStartAudioTime=this.sound.context.currentTime;
-        this.isPreparing=false; this.gameReady=true;
+
+        /* ── [iOS-FIX-2] 開始播放前再次確認 AudioContext 已 resume ── */
+        const ctx = this.sound.context;
+        const doPlay = () => {
+            this.music.play();
+            this.musicStartAudioTime = ctx.currentTime;
+            this.isPreparing = false;
+            this.gameReady   = true;
+        };
+
+        if (ctx.state === 'suspended') {
+            ctx.resume().then(doPlay).catch(doPlay);
+        } else {
+            doPlay();
+        }
     }
 
     update() {
@@ -1374,6 +1436,11 @@ class CalibrationScene extends Phaser.Scene {
     }
 
     create() {
+        /* ── [iOS-FIX-2] 校準場景進入時也確保 AudioContext resume ── */
+        if (this.sound.context && this.sound.context.state === 'suspended') {
+            this.sound.context.resume().catch(() => {});
+        }
+
         const W = this.cameras.main.width, H = this.cameras.main.height;
 
         // 背景
@@ -1452,7 +1519,7 @@ class CalibrationScene extends Phaser.Scene {
         });
 
         // 顯示目前儲存的 offset
-        const saved = parseInt(localStorage.getItem('timingOffset')) || 0;
+        const saved = parseInt(SafeStorage.getItem('timingOffset')) || 0; // [iOS-FIX-1]
         this.hintTxt.setText(`目前儲存值：${saved} ms`);
 
         const backBtn = this.add.text(20, 20, '← 返回', {
@@ -1466,7 +1533,7 @@ class CalibrationScene extends Phaser.Scene {
             if (this.offsetSamples.length >= 2) {
                 const avg = this.offsetSamples.reduce((a, b) => a + b, 0) / this.offsetSamples.length;
                 const offset = Math.round(avg);
-                localStorage.setItem('timingOffset', offset);
+                SafeStorage.setItem('timingOffset', offset); // [iOS-FIX-1]
             }
 
             this.scene.start('MusicScene');
@@ -1474,9 +1541,15 @@ class CalibrationScene extends Phaser.Scene {
     }
 
     _startCalibration() {
-        // 恢復 AudioContext（需要在觸碰事件中）
-        this.sound.context.resume();
+        /* ── [iOS-FIX-2] 校準開始時再次 resume（此時已有用戶手勢）── */
+        this.sound.context.resume().then(() => {
+            this._doStartCalibration();
+        }).catch(() => {
+            this._doStartCalibration();
+        });
+    }
 
+    _doStartCalibration() {
         this.isRunning = true;
         this.offsetSamples = [];
         this.beatCount = 0;
@@ -1496,20 +1569,25 @@ class CalibrationScene extends Phaser.Scene {
             loop: true,
             callback: () => this._playBeat(),
         });
+
+        // 8拍後自動停止讓玩家確認
+        this.time.delayedCall(this.intervalMs * 10, () => {
+            if (this.isRunning) this._stopCalibration();
+        });
     }
 
     _playBeat() {
         this.sound.play('tick');
         this.beatCount++;
 
-        // 視覺閃爍：節拍圓變亮
-        this.tweens.add({
-            targets: this.beatCircle,
-            fillColor: 0x3a2aaa,
-            duration: 60,
-            yoyo: true,
-            ease: 'Quad.easeOut',
+        /* ── [iOS-FIX-4] 改用 setFillStyle 取代 fillColor tween（部分 Phaser 版本不支援）── */
+        this.beatCircle.setFillStyle(0x3a2aaa);
+        this.time.delayedCall(80, () => {
+            if (this.beatCircle && this.beatCircle.active) {
+                this.beatCircle.setFillStyle(0x1a1255);
+            }
         });
+
         this.tweens.add({
             targets: this.beatIcon,
             scaleX: 1.3, scaleY: 1.3,
@@ -1517,11 +1595,16 @@ class CalibrationScene extends Phaser.Scene {
             yoyo: true,
             ease: 'Quad.easeOut',
             onComplete: () => {
-                this.beatIcon.setFill('#a5e8ff');
-                this.time.delayedCall(150, () => this.beatIcon.setFill('#3d3470'));
+                if (this.beatIcon && this.beatIcon.active) {
+                    this.beatIcon.setFill('#a5e8ff');
+                    this.time.delayedCall(150, () => {
+                        if (this.beatIcon && this.beatIcon.active) {
+                            this.beatIcon.setFill('#3d3470');
+                        }
+                    });
+                }
             },
         });
-
     }
 
     _recordTap() {
@@ -1576,7 +1659,7 @@ class CalibrationScene extends Phaser.Scene {
         if (this.offsetSamples.length < 2) { this._resetCalibration(); return; }
         const avg = this.offsetSamples.reduce((a, b) => a + b, 0) / this.offsetSamples.length;
         const offset = Math.round(avg);
-        localStorage.setItem('timingOffset', offset);
+        SafeStorage.setItem('timingOffset', offset); // [iOS-FIX-1]
         this.scene.start('MusicScene');
     }
 
@@ -1590,7 +1673,7 @@ class CalibrationScene extends Phaser.Scene {
         this.resetBtn.setVisible(false);
         this.samplesTxt.setText('點擊次數：0');
         this.offsetTxt.setText('平均偏移：— ms');
-        const saved = parseInt(localStorage.getItem('timingOffset')) || 0;
+        const saved = parseInt(SafeStorage.getItem('timingOffset')) || 0; // [iOS-FIX-1]
         this.hintTxt.setText(`目前儲存值：${saved} ms`);
         this.beatIcon.setFill('#3d3470').setScale(1);
     }
