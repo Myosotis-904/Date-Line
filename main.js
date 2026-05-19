@@ -5,10 +5,6 @@ const API = {
 };
 
 const GSheets = {
-    /**
-     * 寫入資料（POST → no-cors，只管送出，不管回應）
-     * 若需要確認送達請改用 cors-proxy 或回傳 JSONP
-     */
     async post(url, data) {
         if (!url || url.startsWith('YOUR_')) {
             console.warn('[GSheets] URL 尚未設定，資料僅印出：', data);
@@ -18,7 +14,7 @@ const GSheets = {
             const body = new URLSearchParams(data).toString();
             await fetch(url, {
                 method: 'POST',
-                mode: 'no-cors',          // Google Apps Script 需要此模式
+                mode: 'no-cors',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body,
             });
@@ -28,12 +24,6 @@ const GSheets = {
             return { ok: false, reason: e.message };
         }
     },
-
-    /**
-     * 讀取資料（GET，需要 Apps Script doGet 回傳 JSONP 或 JSON）
-     * 若 Apps Script 設定 doGet 回傳 ContentService.TEXT，
-     * 直接 fetch + json() 即可（需允許 CORS）
-     */
     async get(url, params = {}) {
         if (!url || url.startsWith('YOUR_')) {
             console.warn('[GSheets] URL 尚未設定，回傳空留言。');
@@ -52,20 +42,83 @@ const GSheets = {
 };
 
 /* ================================================================
-   地標資料表（含新增的兩個地標）
+   [FIX-4] 全域玩家位置記憶（退出音樂場景後保留位置）
+================================================================ */
+const PlayerState = {
+    x: null,
+    y: null,
+    save(x, y) { this.x = x; this.y = y; },
+    load() { return { x: this.x, y: this.y }; },
+    hasPosition() { return this.x !== null && this.y !== null; },
+};
+
+/* ================================================================
+   地標資料表
 ================================================================ */
 const LANDMARKS = [
+
+ // ── [NEW-5] 海浪地標（動態精靈圖，垂直4幀，每幀2000x250）──
     {
-        key: 'stage', x: 600, y: 1200, scale: 2.5,
+        key: 'wave', x: 720, y: 890, scale: 0.719,
+        // colW: 200, colH: 60,
+        nearDist: 180, interactDist: 220,
+        isWave: true,         // 標記為海浪動畫地標
+        dialog: {
+            title: '海浪',
+            lines: [' '],
+        },
+    },
+
+    {
+        key: 'cord',
+        x: 1070, y: 1500, scale: 0.4,
+        colW: 30, colH: 35,
+        nearDist: 150, interactDist: 190,
+        dialog: {
+            title: '沙灘藝術...?',
+            lines: [
+                '沒有人跟你說來路不明的 QR Cord 不要亂掃嗎?',
+                '我已經提醒過你了。'
+            ],
+            action: 'open_link',          
+            actionLabel: '🌟打開連結', 
+        },
+    },
+
+    {
+        key: 'stage', x: 300, y: 1450, scale: 2.5,
         colW: 150, colH: 110,
         nearDist: 200, interactDist: 240,
         dialog: {
-            title: '舞台(5/27-5/29 畢業歌音樂會)',
+            title: '5/27-5/29 畢業歌音樂會',
             lines: ['這是主要演出場地。', '進入舞台可遊玩音樂節奏遊戲！'],
             action: 'enter',
             actionLabel: '▶  進入舞台',
         },
     },
+
+     {
+        key: 'cocona', x: 980, y: 2100, scale: 0.8,
+        colW: 30, colH: 35,
+        nearDist: 150, interactDist: 190,
+        dialog: {
+            title: '椰子樹',
+            lines: ['這是一棵椰子樹'],
+        },
+    },
+
+     {
+        key: 'mailbox', x: 1350, y: 1670, scale: 0.12,
+        colW: 40, colH: 55,
+        nearDist: 160, interactDist: 200,
+        dialog: {
+            title: '神奇海螺(留言板)',
+            lines: ['為什麼不告訴神奇海螺呢?',' ', '(神奇海螺會把秘密告訴所有人。)'],
+            action: 'guestbook',
+            actionLabel: '💬 開啟留言板',
+        },
+    },
+
     {
         key: 'tree1', x: 1120, y: 2160, scale: 0.8,
         colW: 30, colH: 35,
@@ -84,6 +137,17 @@ const LANDMARKS = [
             lines: ['好像散發奇怪的氣息...?', '感覺不要靠太近比較好...'],
         },
     },
+
+    {
+        key: 'crab', x: 320, y: 2000, scale: 0.8,
+        colW: 30, colH: 50,
+        nearDist: 80, interactDist: 100,
+        dialog: {
+            title: '螃蟹',
+            lines: ['放心他不會把你丟出蟹堡王。',' 還有他真的沒熟。'],
+        },
+    },
+
     {
         key: 'sign', x: 540, y: 2090, scale: 0.6,
         colW: 40, colH: 40,
@@ -98,9 +162,8 @@ const LANDMARKS = [
             ],
         },
     },
-    // ── [G1] Bug 回報地標（綠兔子，放在舞台旁邊）──
     {
-        key: 'bunny', x: 820, y: 1240, scale: 0.5,
+        key: 'bunny', x: 540, y: 1480, scale: 0.5,
         colW: 35, colH: 50,
         nearDist: 160, interactDist: 200,
         dialog: {
@@ -110,18 +173,37 @@ const LANDMARKS = [
             actionLabel: '📝 填寫回報',
         },
     },
-    // ── [G2] 留言板地標（信箱，放在地圖某角落）──
+    // ── [NEW-1] 吉祥物（太陽）地標 ──
     {
-        key: 'mailbox', x: 900, y: 2100, scale: 0.2,
-        colW: 40, colH: 55,
-        nearDist: 160, interactDist: 200,
+        key: 'sun', x:1300, y: 1900, scale: 0.2,
+        colW: 50, colH: 60,
+        nearDist: 170, interactDist: 210,
+        floatAmplitude: 12,   // 上下漂浮幅度（像素）
+        floatSpeed: 1.8,      // 漂浮速度
+        hasShadow: true,      // 開啟陰影
         dialog: {
-            title: '巨大神奇海螺(留言板)',
-            lines: ['為什麼不告訴神奇海螺呢?',' ', '(神奇海螺會把秘密告訴所有人。)'],
-            action: 'guestbook',
-            actionLabel: '💬 開啟留言板',
+            title: '✨太陽朋友',
+            lines: [, '想知道更多相關資訊嗎？', '快去追蹤我們的 IG 吧！'],
+            action: 'open_ig',
+            actionLabel: '🌟 前往 IG',
         },
     },
+    // ── [NEW-2] 漂流瓶地標 ──
+    {
+        key: 'buttle', x: 300, y: 300, scale: 0.9,
+        colW: 35, colH: 50,
+        nearDist: 160, interactDist: 200,
+        floatAmplitude: 8,
+        floatSpeed: 1.9,
+        hasShadow: true,
+        dialog: {
+            title: '漂流瓶',
+            lines: ['瓶子裡好像裝著什麼...', '要打開來看看嗎？'],
+            action: 'show_card',
+            actionLabel: '💌 打開漂流瓶',
+        },
+    },
+
 ];
 
 /* ================================================================
@@ -185,9 +267,18 @@ class GameScene extends Phaser.Scene {
         this.load.image('stage',   'assets/stage.png');
         this.load.image('tree1',   'assets/tree1.png');
         this.load.image('tree2',   'assets/tree2.png');
+        this.load.image('cocona',  'assets/cocona.png');
         this.load.image('sign',    'assets/sign.png');
-        this.load.image('bunny',   'assets/bunny.png');    // [G1] 綠兔子圖片
-        this.load.image('mailbox', 'assets/mailbox.png'); // [G2] 信箱圖片
+        this.load.image('crab',    'assets/crab.png');
+        this.load.image('cord',    'assets/cord.png');
+        this.load.image('bunny',   'assets/bunny.png');
+        this.load.image('mailbox', 'assets/mailbox.png');
+        this.load.image('btn_idle', 'assets/btn_idle.png');
+        this.load.image('btn_active', 'assets/btn_active.png');
+        this.load.image('sun',     'assets/sun.png');      // [NEW-1] 吉祥物
+        this.load.image('buttle',  'assets/buttle.png');   // [NEW-2] 漂流瓶
+        this.load.image('card',    'assets/card.png');     // [NEW-2] 邀請卡
+        this.load.spritesheet('wave', 'assets/wave.png',{ frameWidth: 2000, frameHeight: 1240 });
         this.load.spritesheet('player', 'assets/player.png', { frameWidth: 256, frameHeight: 256 });
     }
 
@@ -204,15 +295,47 @@ class GameScene extends Phaser.Scene {
         this.worldHeight = this.map.height * mapScale;
         this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
+        /* ── [NEW-5] 海浪動畫 ── */
+        this.anims.create({
+            key: 'wave_anim',
+            frames: [0,1,2,3,2,1].map(f => ({
+                key: 'wave',
+                frame: f
+            })),
+            frameRate: 2.5,
+            repeat: -1,
+        });
         /* ── 地標 ── */
         this.landmarks = LANDMARKS.map(def => {
-            const sprite = this.add.image(def.x, def.y, def.key).setOrigin(0.5, 1).setScale(def.scale).setDepth(5);
-            const halo   = this.add.ellipse(def.x, def.y - 8, def.colW * 2.8, 28, 0x9988ff, 0).setDepth(4);
-            return { ...def, sprite, halo, isNear: false };
+            let sprite;
+
+            if (def.isWave) {
+                // [NEW-5] 海浪：使用 Sprite 並播放動畫
+                sprite = this.add.sprite(def.x, def.y, 'wave').setOrigin(0.5, 1).setScale(def.scale).setDepth(5);
+                sprite.play('wave_anim');
+                sprite.anims.setProgress(Math.random());
+            } else {
+                sprite = this.add.image(def.x, def.y, def.key).setOrigin(0.5, 1).setScale(def.scale).setDepth(5);
+            }
+
+            const halo = this.add.ellipse(def.x, def.y - 8, def.colW * 2.8, 28, 0x9988ff, 0).setDepth(4);
+
+            // [NEW-1][NEW-2] 漂浮陰影（橢圓）
+            let shadow = null;
+            if (def.hasShadow) {
+                shadow = this.add.ellipse(def.x, def.y - 4, def.colW * 2.2, 18, 0x000000, 0.25).setDepth(4);
+            }
+
+            return { ...def, sprite, halo, shadow, isNear: false, _floatOffset: Math.random() * Math.PI * 2 };
         });
 
         /* ── 玩家 ── */
-        this.player = this.add.sprite(this.worldWidth / 2, this.worldHeight - 50, 'player')
+        // [FIX-4] 優先使用記憶的位置
+        const savedPos = PlayerState.load();
+        const startX = PlayerState.hasPosition() ? savedPos.x : this.worldWidth / 2;
+        const startY = PlayerState.hasPosition() ? savedPos.y : this.worldHeight - 50;
+
+        this.player = this.add.sprite(startX, startY, 'player')
             .setOrigin(0.5, 1).setScale(0.7).setDepth(10);
 
         if (!this.anims.exists('idle'))
@@ -259,27 +382,29 @@ class GameScene extends Phaser.Scene {
             this.joyStick.setPosition(this.baseX, gs.height-120);
         });
 
-        /* ── 右側互動鍵 ── */
-        this.interactBtn = this.add.text(this.scale.width - 14, this.scale.height / 2, '！\n互動', {
-            fontSize:'18px', fill:'#fff', fontFamily:"'Noto Sans TC',monospace",
-            backgroundColor:'#2a1a6a', padding:{x:14,y:12}, align:'center',
-        }).setOrigin(1,0.5).setScrollFactor(0).setDepth(30).setVisible(false)
-          .setInteractive()
-          .on('pointerover',  function(){ this.setStyle({backgroundColor:'#4a2aaa'}); })
-          .on('pointerout',   function(){ this.setStyle({backgroundColor:'#2a1a6a'}); })
-          .on('pointerdown',  () => this._triggerInteract());
-
+        this.interactBtn = this.add.image(
+            this.scale.width - 60,
+            this.scale.height *0.78,
+            'btn_idle'
+        )
+        .setOrigin(1, 0.5)
+        .setScrollFactor(0)
+        .setDepth(30)
+        .setScale(0.25) // 👈 這裡調
+        .setInteractive()
+        .on('pointerdown', () => this._triggerInteract());
         /* ── 建立所有 UI 層 ── */
-        this._buildDialog();       // 一般對話框
-        this._buildBugForm();      // [G1] Bug 回報表單
-        this._buildGuestbook();    // [G2] 留言板
+        this._buildDialog();
+        this._buildBugForm();
+        this._buildGuestbook();
+        
 
         this.input.keyboard.on('keydown-E',     () => this._triggerInteract());
         this.input.keyboard.on('keydown-ENTER', () => this._triggerInteract());
     }
 
     /* ────────────────────────────────────────────────────────
-       一般對話框（與 v4 相同）
+       一般對話框
     ──────────────────────────────────────────────────────── */
     _buildDialog() {
         const W = this.scale.width, H = this.scale.height;
@@ -297,7 +422,7 @@ class GameScene extends Phaser.Scene {
             .setScrollFactor(0).setDepth(42).setVisible(false);
         this.dlg.rows = Array.from({length:5},(_,i)=>
             this.add.text(cx,cy-bh/2+64+i*26,'',{
-                fontSize:'14px', fill:'#9080cc', fontFamily:"'Noto Sans TC',monospace",
+                fontSize:'14px', fill:'#a197c8', fontFamily:"'Noto Sans TC',monospace",
             }).setOrigin(0.5,0).setScrollFactor(0).setDepth(42).setVisible(false)
         );
         this.dlg.actionBtn = this.add.text(cx-52,cy+bh/2-40,'',{
@@ -341,9 +466,16 @@ class GameScene extends Phaser.Scene {
         if (!this._activeLandmark) return;
         const action = this._activeLandmark.dialog.action;
         this._closeDialog();
-        if (action === 'enter')      this.scene.start('MusicScene');
-        if (action === 'bug_report') this._openBugForm();   // [G1]
-        if (action === 'guestbook')  this._openGuestbook(); // [G2]
+        if (action === 'enter')      {
+            // [FIX-4] 進入音樂場景前記憶位置
+            PlayerState.save(this.player.x, this.player.y);
+            this.scene.start('MusicScene');
+        }
+        if (action === 'bug_report') this._openBugForm();
+        if (action === 'guestbook')  this._openGuestbook();
+        if (action === 'open_ig')    this._openIG();       // [NEW-1]
+        if (action === 'show_card')  this._showCard();     // [NEW-2]
+         if (action === 'open_link')    this._open_link();
     }
 
     _triggerInteract() {
@@ -357,18 +489,81 @@ class GameScene extends Phaser.Scene {
     }
 
     /* ────────────────────────────────────────────────────────
-       [G1] Bug 回報表單（用 DOM input/textarea，疊在 canvas 上）
-       送出 → POST 至 Google Sheets Apps Script
+       [NEW-1] 開啟 IG 連結
+    ──────────────────────────────────────────────────────── */
+    _openIG() {
+        window.open('https://www.instagram.com/kghs_78grad?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==', '_blank');
+    }
+
+    _open_link() {
+        window.open('https://youtu.be/dQw4w9WgXcQ?si=nINUW_aP17-9zywm', '_blank');
+    }
+
+    /* ────────────────────────────────────────────────────────
+       [NEW-2] 顯示邀請卡圖片（DOM overlay）
+    ──────────────────────────────────────────────────────── */
+    _showCard() {
+        if (this._cardEl) return;
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position:fixed; inset:0;
+            background:rgba(0,0,0,0.82);
+            display:flex; align-items:center; justify-content:center;
+            z-index:9999; cursor:pointer;
+            animation: fadeInCard 0.3s ease;
+        `;
+
+        // 注入動畫 keyframe（只加一次）
+        if (!document.getElementById('card-style')) {
+            const style = document.createElement('style');
+            style.id = 'card-style';
+            style.textContent = `
+                @keyframes fadeInCard {
+                    from { opacity:0; transform:scale(0.92); }
+                    to   { opacity:1; transform:scale(1); }
+                }
+                @keyframes bobCard {
+                    0%,100% { transform:translateY(0px) rotate(-1deg); }
+                    50%     { transform:translateY(-8px) rotate(1deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        overlay.innerHTML = `
+            <div style="position:relative; max-width:min(480px,88vw); text-align:center;">
+                <img src="assets/card.png" alt="邀請卡"
+                    style="width:100%; border-radius:12px;
+                    box-shadow:0 0 60px rgba(90,79,255,0.6), 0 0 20px rgba(0,0,0,0.8);
+                    animation: bobCard 3s ease-in-out infinite;">
+                <div style="margin-top:14px; color:#9080cc; font-size:13px;
+                    font-family:'Noto Sans TC',monospace; letter-spacing:2px;">
+                    點擊任意處關閉
+                </div>
+            </div>
+        `;
+
+        overlay.onclick = () => {
+            overlay.remove();
+            this._cardEl = null;
+            this.dialogOpen = false;
+        };
+
+        document.body.appendChild(overlay);
+        this._cardEl = overlay;
+    }
+
+    /* ────────────────────────────────────────────────────────
+       [G1] Bug 回報表單
     ──────────────────────────────────────────────────────── */
     _buildBugForm() {
-        // 用 DOM 元素做輸入框（Phaser 沒有原生文字輸入）
-        this._bugFormEl = null;  // 動態建立、關閉時移除
+        this._bugFormEl = null;
     }
 
     _openBugForm() {
         if (this._bugFormEl) return;
 
-        // 建立 DOM overlay
         const overlay = document.createElement('div');
         overlay.id = 'bug-form-overlay';
         overlay.style.cssText = `
@@ -388,27 +583,22 @@ class GameScene extends Phaser.Scene {
                     🐇 Bug 回報 / 建議
                 </div>
                 <div style="height:1px;background:#2a2460;margin-bottom:16px;"></div>
-
                 <label style="color:#9080cc;font-size:13px;display:block;margin-bottom:4px;">你的名字（可不填）</label>
                 <input id="bug-name" type="text" maxlength="30" placeholder="匿名"
                     style="width:100%;padding:8px 10px;background:#1a1a33;border:1px solid #3a3460;
                     color:#d4caff;font-size:14px;border-radius:5px;outline:none;margin-bottom:12px;">
-
                 <label style="color:#9080cc;font-size:13px;display:block;margin-bottom:4px;">問題或建議 *</label>
                 <textarea id="bug-desc" rows="4" maxlength="500" placeholder="請描述 bug 或你的建議..."
                     style="width:100%;padding:8px 10px;background:#1a1a33;border:1px solid #3a3460;
                     color:#d4caff;font-size:14px;border-radius:5px;outline:none;resize:vertical;
                     margin-bottom:16px;"></textarea>
-
                 <div style="display:flex;gap:12px;justify-content:flex-end;">
                     <button id="bug-cancel" style="
                         background:transparent;border:1px solid #333355;color:#555577;
-                        padding:8px 20px;border-radius:5px;cursor:pointer;font-size:13px;
-                    ">取消</button>
+                        padding:8px 20px;border-radius:5px;cursor:pointer;font-size:13px;">取消</button>
                     <button id="bug-submit" style="
                         background:#1a1233;border:1px solid #5a4fff;color:#b3aaff;
-                        padding:8px 24px;border-radius:5px;cursor:pointer;font-size:13px;
-                    ">📤 送出</button>
+                        padding:8px 24px;border-radius:5px;cursor:pointer;font-size:13px;">📤 送出</button>
                 </div>
                 <div id="bug-status" style="color:#5fffb8;font-size:12px;margin-top:10px;text-align:center;min-height:18px;"></div>
             </div>
@@ -423,23 +613,17 @@ class GameScene extends Phaser.Scene {
         };
 
         document.getElementById('bug-cancel').onclick = () => this._closeBugForm();
-
         document.getElementById('bug-submit').onclick = async () => {
             const name = document.getElementById('bug-name').value.trim() || '匿名';
             const desc = document.getElementById('bug-desc').value.trim();
             if (!desc) { setStatus('請填寫問題描述！', '#ff7eb3'); return; }
-
             document.getElementById('bug-submit').disabled = true;
             setStatus('送出中…', '#ffe066');
-
             const result = await GSheets.post(API.BUG_URL, {
-                type: 'bug',
-                name,
-                desc,
+                type: 'bug', name, desc,
                 time: new Date().toLocaleString('zh-TW'),
                 ua:   navigator.userAgent.substring(0,80),
             });
-
             if (result.reason === 'no_url') {
                 setStatus('⚠️ API URL 未設定（開發模式）', '#ffe066');
                 setTimeout(()=> this._closeBugForm(), 1800);
@@ -451,15 +635,12 @@ class GameScene extends Phaser.Scene {
     }
 
     _closeBugForm() {
-        if (this._bugFormEl) {
-            this._bugFormEl.remove();
-            this._bugFormEl = null;
-        }
+        if (this._bugFormEl) { this._bugFormEl.remove(); this._bugFormEl = null; }
         this.dialogOpen = false;
     }
 
     /* ────────────────────────────────────────────────────────
-       [G2] 留言板（讀取 + 新增，資料存於 Google Sheets）
+       [G2] 留言板
     ──────────────────────────────────────────────────────── */
     _buildGuestbook() {
         this._gbEl = null;
@@ -489,19 +670,12 @@ class GameScene extends Phaser.Scene {
                     <button id="gb-close" style="background:transparent;border:none;color:#555577;font-size:18px;cursor:pointer;">✕</button>
                 </div>
                 <div style="height:1px;background:#2a2460;margin-bottom:12px;"></div>
-
-                <!-- 留言列表 -->
                 <div id="gb-list" style="
                     flex:1; overflow-y:auto; margin-bottom:14px;
-                    max-height:300px; min-height:80px;
-                    padding-right:4px;
-                ">
+                    max-height:300px; min-height:80px; padding-right:4px;">
                     <div style="color:#444466;font-size:13px;text-align:center;padding:20px 0;">載入中…</div>
                 </div>
-
                 <div style="height:1px;background:#2a2460;margin-bottom:12px;"></div>
-
-                <!-- 新增留言 -->
                 <div style="display:flex;flex-direction:column;gap:8px;">
                     <div style="display:flex;gap:8px;">
                         <input id="gb-name" type="text" maxlength="20" placeholder="你的名字（可不填）"
@@ -525,8 +699,7 @@ class GameScene extends Phaser.Scene {
                         <span id="gb-status" style="color:#5fffb8;font-size:12px;min-height:16px;"></span>
                         <button id="gb-submit" style="
                             background:#1a1233;border:1px solid #5a4fff;color:#b3aaff;
-                            padding:7px 20px;border-radius:5px;cursor:pointer;font-size:13px;
-                        ">💬 留言</button>
+                            padding:7px 20px;border-radius:5px;cursor:pointer;font-size:13px;">💬 留言</button>
                     </div>
                 </div>
             </div>
@@ -541,34 +714,24 @@ class GameScene extends Phaser.Scene {
         };
 
         document.getElementById('gb-close').onclick = () => this._closeGuestbook();
-
-        // 讀取留言
         this._loadMessages();
 
-        // 送出留言
         document.getElementById('gb-submit').onclick = async () => {
             const name = document.getElementById('gb-name').value.trim() || '匿名旅人';
             const mood = document.getElementById('gb-mood').value;
             const msg  = document.getElementById('gb-msg').value.trim();
             if (!msg) { setStatus('請輸入留言內容！', '#ff7eb3'); return; }
-
             document.getElementById('gb-submit').disabled = true;
             setStatus('送出中…', '#ffe066');
-
             const result = await GSheets.post(API.MSG_URL, {
-                type: 'message',
-                name,
-                mood,
-                msg,
+                type: 'message', name, mood, msg,
                 time: new Date().toLocaleString('zh-TW'),
             });
-
             if (result.reason === 'no_url') {
                 setStatus('⚠️ API 未設定（開發模式）', '#ffe066');
             } else {
                 setStatus('✓ 留言成功！', '#5fffb8');
                 document.getElementById('gb-msg').value = '';
-                // 在本機先插入這筆（讓用戶即時看到）
                 this._insertMessageEl({ name, mood, msg, time:'剛剛' }, true);
             }
             document.getElementById('gb-submit').disabled = false;
@@ -578,28 +741,21 @@ class GameScene extends Phaser.Scene {
     async _loadMessages() {
         const list = document.getElementById('gb-list');
         if (!list) return;
-
         const messages = await GSheets.get(API.MSG_URL, { type:'messages' });
-
         if (!messages.length) {
             list.innerHTML = `<div style="color:#444466;font-size:13px;text-align:center;padding:20px 0;">
                 還沒有留言，來第一個留言吧！🌙
             </div>`;
             return;
         }
-
         list.innerHTML = '';
-        // 最新的排前面
         [...messages].reverse().forEach(m => this._insertMessageEl(m, false));
     }
 
     _insertMessageEl(m, prepend = false) {
         const list = document.getElementById('gb-list');
         if (!list) return;
-
-        // 清除「還沒有留言」提示
         if (list.querySelector('div[style*="text-align:center"]')) list.innerHTML = '';
-
         const card = document.createElement('div');
         card.style.cssText = `
             background:#131328; border:1px solid #2a2460; border-radius:6px;
@@ -616,12 +772,8 @@ class GameScene extends Phaser.Scene {
                 ${this._esc(m.msg||'').replace(/\n/g,'<br>')}
             </div>
         `;
-
-        if (prepend) {
-            list.insertBefore(card, list.firstChild);
-        } else {
-            list.appendChild(card);
-        }
+        if (prepend) list.insertBefore(card, list.firstChild);
+        else list.appendChild(card);
     }
 
     _closeGuestbook() {
@@ -629,14 +781,10 @@ class GameScene extends Phaser.Scene {
         this.dialogOpen = false;
     }
 
-    // XSS 防護：跳脫 HTML 特殊字元
     _esc(str) {
         return String(str)
-            .replace(/&/g,'&amp;')
-            .replace(/</g,'&lt;')
-            .replace(/>/g,'&gt;')
-            .replace(/"/g,'&quot;')
-            .replace(/'/g,'&#39;');
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
     /* ── update ── */
@@ -666,9 +814,10 @@ class GameScene extends Phaser.Scene {
         else if (this.joyX> 0.2) this.player.anims.play('walk_right', true);
         else                      this.player.anims.play('idle',       true);
 
-        // 地標靠近動畫
-        let anyNear=false;
-        const t = time/1000;
+        // 地標靠近動畫 + [NEW-1][NEW-2] 漂浮效果
+        let anyNear = false;
+        const t = time / 1000;
+
         for (const lm of this.landmarks) {
             const dist = Phaser.Math.Distance.Between(this.player.x,this.player.y,lm.x,lm.y);
             const near = dist < lm.nearDist;
@@ -680,14 +829,41 @@ class GameScene extends Phaser.Scene {
                 this.tweens.add({targets:lm.halo, alpha:0, duration:300});
             }
             if (near) anyNear=true;
+
+            // [NEW-1][NEW-2] 漂浮動畫：更新 sprite Y 座標和陰影
+            if (lm.floatAmplitude && lm.sprite && lm.sprite.active) {
+                const phase = t * lm.floatSpeed + lm._floatOffset;
+                const floatY = Math.sin(phase) * lm.floatAmplitude;
+                lm.sprite.y = lm.y + floatY;
+
+                // 陰影隨漂浮縮放（離得越遠陰影越小）
+                if (lm.shadow && lm.shadow.active) {
+                    const shadowScale = 1 - Math.abs(floatY) / (lm.floatAmplitude * 3);
+                    const shadowAlpha = 0.25 * shadowScale;
+                    lm.shadow.setScale(shadowScale, 1);
+                    lm.shadow.setAlpha(shadowAlpha);
+                    // 陰影位置固定在地標底部
+                    lm.shadow.setPosition(lm.x, lm.y - 4);
+                }
+            }
         }
-        this.interactBtn.setVisible(anyNear);
-        if (anyNear) this.interactBtn.setAlpha(0.72+0.28*Math.sin(t*5));
+
+        this.interactBtn.setVisible(true);
+
+        if (anyNear) {
+            this.interactBtn.setTexture('btn_active');
+            this.interactBtn.setAlpha(1);
+        } else {
+            this.interactBtn.setTexture('btn_idle');
+            this.interactBtn.setAlpha(0.5); // 👈 待機淡掉
+        }
     }
+
+    
 }
 
 /* ================================================================
-   MusicScene（完整保留 document 6 版本）
+   MusicScene
 ================================================================ */
 class MusicScene extends Phaser.Scene {
     constructor() { super('MusicScene'); }
@@ -735,9 +911,14 @@ class MusicScene extends Phaser.Scene {
         this.judgeTxt=this.add.text(W/2,H*0.34,'',{fontSize:'20px',fill:'#ffffff',fontFamily:'monospace',align:'center'}).setOrigin(0.5,0.5).setAlpha(0);
         this.statusTxt=this.add.text(W/2,H/2,'載入譜面中…',{fontSize:'20px',fill:'#a5e8ff',fontFamily:'monospace'}).setOrigin(0.5);
 
+        // [FIX-4] 退出按鈕：返回 GameScene 並還原位置（不重置 PlayerState）
         this.add.text(16,12,'← 離開',{fontSize:'16px',fill:'#666',fontFamily:'monospace',backgroundColor:'#111',padding:{x:8,y:4}})
             .setScrollFactor(0).setInteractive()
-            .on('pointerdown',()=>{ if(this.music?.isPlaying)this.music.stop(); this.scene.start('GameScene'); });
+            .on('pointerdown',()=>{
+                if(this.music?.isPlaying) this.music.stop();
+                this.scene.start('GameScene');
+                // PlayerState 已在進入時存好，GameScene 的 create 會自動讀取
+            });
 
         this.input.on('pointerdown',(ptr)=>{
             if(!this.gameReady)return;
@@ -780,39 +961,110 @@ class MusicScene extends Phaser.Scene {
         this.isLoaded=true;
     }
 
+    /* ────────────────────────────────────────────────────────
+       [FIX-3] 重新設計準備介面：乾淨的現代音樂遊戲風格
+       - 速度滑桿保留
+       - Timing 改為「聽聲按螢」自動校準（CalibrationScene）
+       - 不再顯示 Timing 數值輸入欄
+    ──────────────────────────────────────────────────────── */
     _createPrepareUI() {
-        const W=this.cameras.main.width,H=this.cameras.main.height;
-        this.prepareUI=this.add.container(0,0);
-        const bg=this.add.image(W/2,H/2,'ui_bg').setDisplaySize(W,H);
-        this.prepareUI.add(bg);
-        this.timingText=this.add.text(W*0.7,H*0.25,`Timing: ${this.timingOffset} ms`).setOrigin(0.5);
-        this.prepareUI.add(this.timingText);
-        const startBtn=this.add.text(W*0.77,H*0.83,'       ',{fontSize:'22px',fill:'#fff',padding:{x:20,y:10}})
-            .setOrigin(0.5).setInteractive().on('pointerdown',()=>this._startGame());
-        this.prepareUI.add(startBtn);
-        const slider=this._createSpeedSlider(W*0.65,H*0.35);
-        slider.forEach(obj=>this.prepareUI.add(obj));
-        const calibrateBtn=this.add.text(W/2,H*0.65,'校準 Timing',{fontSize:'20px',fill:'#fff',backgroundColor:'#555',padding:{x:16,y:8}})
-            .setOrigin(0.5).setInteractive().on('pointerdown',()=>this.scene.start('CalibrationScene'));
-        this.prepareUI.add(calibrateBtn);
-        const hardBtn=this.add.text(W*0.8,H*0.5,'    ',{fontSize:'20px',padding:{x:10,y:5}}).setInteractive();
-        const easyBtn=this.add.text(W*0.7,H*0.5,'     ',{fontSize:'20px',padding:{x:10,y:5}}).setInteractive();
-        this.prepareUI.add(hardBtn); this.prepareUI.add(easyBtn);
-    }
+        const W=this.cameras.main.width, H=this.cameras.main.height;
+        this.prepareUI = this.add.container(0, 0).setDepth(50);
 
-    _createSpeedSlider(x,y) {
-        const w=200;
-        const bg=this.add.rectangle(x,y,w,6,0x444444).setOrigin(0,0.5);
-        const hdl=this.add.circle(x+w/2,y,10,0xffffff).setInteractive({draggable:true});
-        const txt=this.add.text(x,y-30,'Speed: 1.00x');
-        this.input.setDraggable(hdl); this.input.off('drag');
-        this.input.on('drag',(pointer,obj,dragX)=>{
-            if(obj!==hdl)return;
-            const clamped=Phaser.Math.Clamp(dragX,x,x+w); obj.x=clamped;
-            const t=(clamped-x)/w; this.speedMultiplier=0.5+t*1.5;
-            txt.setText(`Speed: ${this.speedMultiplier.toFixed(2)}x`);
+        // 背景圖
+        const bg = this.add.image(W/2, H/2, 'ui_bg').setDisplaySize(W, H).setAlpha(0.85);
+        this.prepareUI.add(bg);
+
+        // 半透明遮罩
+        const mask = this.add.rectangle(W/2, H/2, W, H, 0x050510, 0.72);
+        this.prepareUI.add(mask);
+
+        // ── 標題區 ──
+        const title = this.add.text(W/2, H*0.10, '換日線', {
+            fontSize: '36px', fill: '#d4caff',
+            fontFamily: "'Noto Sans TC', monospace", letterSpacing: 12,
+        }).setOrigin(0.5);
+        this.prepareUI.add(title);
+
+        const sub = this.add.text(W/2, H*0.10+48, 'RHYTHM GAME', {
+            fontSize: '12px', fill: '#3d3470', fontFamily: 'monospace', letterSpacing: 6,
+        }).setOrigin(0.5);
+        this.prepareUI.add(sub);
+
+        // ── 分隔線 ──
+        const divLine = this.add.rectangle(W/2, H*0.22, W*0.5, 1, 0x2a2460);
+        this.prepareUI.add(divLine);
+
+        // ── 速度設定區 ──
+        const speedLabel = this.add.text(W/2, H*0.27, '落速設定', {
+            fontSize: '13px', fill: '#6655aa', fontFamily: 'monospace', letterSpacing: 4,
+        }).setOrigin(0.5);
+        this.prepareUI.add(speedLabel);
+
+        this.speedValueTxt = this.add.text(W/2, H*0.34, '1.00×', {
+            fontSize: '32px', fill: '#d4caff', fontFamily: 'monospace',
+        }).setOrigin(0.5);
+        this.prepareUI.add(this.speedValueTxt);
+
+        // 速度調整按鈕
+        const btnStyle = {
+            fontSize: '22px', fill: '#b3aaff', fontFamily: 'monospace',
+            backgroundColor: '#1a1233', padding: { x: 18, y: 10 },
+        };
+        const minusBtn = this.add.text(W/2 - 90, H*0.34, '－', btnStyle)
+            .setOrigin(0.5).setInteractive()
+            .on('pointerdown', () => {
+                this.speedMultiplier = Math.max(0.5, parseFloat((this.speedMultiplier - 0.25).toFixed(2)));
+                this.speedValueTxt.setText(this.speedMultiplier.toFixed(2) + '×');
+            });
+        const plusBtn = this.add.text(W/2 + 90, H*0.34, '＋', btnStyle)
+            .setOrigin(0.5).setInteractive()
+            .on('pointerdown', () => {
+                this.speedMultiplier = Math.min(3.0, parseFloat((this.speedMultiplier + 0.25).toFixed(2)));
+                this.speedValueTxt.setText(this.speedMultiplier.toFixed(2) + '×');
+            });
+        this.prepareUI.add(minusBtn);
+        this.prepareUI.add(plusBtn);
+
+        // ── Timing 校準區 ──
+        const timingLabel = this.add.text(W/2, H*0.48, 'TIMING 校準', {
+            fontSize: '13px', fill: '#6655aa', fontFamily: 'monospace', letterSpacing: 4,
+        }).setOrigin(0.5);
+        this.prepareUI.add(timingLabel);
+
+        // 顯示目前 offset
+        this.timingValueTxt = this.add.text(W/2, H*0.55, `目前偏移：${this.timingOffset} ms`, {
+            fontSize: '16px', fill: '#7c70c0', fontFamily: 'monospace',
+        }).setOrigin(0.5);
+        this.prepareUI.add(this.timingValueTxt);
+
+        // 前往校準按鈕
+        const calibBtn = this.add.text(W/2, H*0.62, '🎵  聽聲按螢校準', {
+            fontSize: '17px', fill: '#a5e8ff', fontFamily: "'Noto Sans TC', monospace",
+            backgroundColor: '#0d1a2a', padding: { x: 20, y: 10 },
+            align: 'center',
+        }).setOrigin(0.5).setInteractive()
+          .on('pointerover', function() { this.setStyle({ fill: '#fff' }); })
+          .on('pointerout',  function() { this.setStyle({ fill: '#a5e8ff' }); })
+          .on('pointerdown', () => { this.scene.start('CalibrationScene'); });
+        this.prepareUI.add(calibBtn);
+
+        // ── 開始按鈕 ──
+        const startBtn = this.add.text(W/2, H*0.80, '▶   開始遊戲', {
+            fontSize: '22px', fill: '#d4caff', fontFamily: "'Noto Sans TC', monospace",
+            backgroundColor: '#1a1055', padding: { x: 36, y: 14 },
+            align: 'center',
+        }).setOrigin(0.5).setInteractive()
+          .on('pointerover', function() { this.setStyle({ backgroundColor: '#3a2aaa', fill: '#fff' }); })
+          .on('pointerout',  function() { this.setStyle({ backgroundColor: '#1a1055', fill: '#d4caff' }); })
+          .on('pointerdown', () => this._startGame());
+        this.prepareUI.add(startBtn);
+
+        // 閃爍動畫
+        this.tweens.add({
+            targets: startBtn, alpha: 0.75, duration: 950,
+            yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
         });
-        return[bg,hdl,txt];
     }
 
     _startGame() {
@@ -832,7 +1084,6 @@ class MusicScene extends Phaser.Scene {
         if(this.music&&!this.music.isPlaying&&this.gameReady){this.gameReady=false;this._showResult();}
     }
 
-    /* ── Hold Note 完整保留 ── */
     _spawnNotes(elapsed) {
         while(this.noteQueue.length&&this.noteQueue[0].time<=elapsed+MUSIC_CFG.LOOK_AHEAD)
             this._spawnNote(this.noteQueue.shift(),elapsed);
@@ -916,8 +1167,6 @@ class MusicScene extends Phaser.Scene {
         if(isCompleted){this._completeHold(note);}
         else{note._state='break';note.destroy();delete this.holdingNotes[lane];this._onMiss();this._showJudge('BREAK','#ff8844');}
     }
-    /* ── Hold Note 結束 ── */
-
     _onHit(pts,label,color) {
         this.score+=pts*Math.max(1,1+Math.floor(this.combo/10));
         this.combo++; if(this.combo>this.maxCombo)this.maxCombo=this.combo;
@@ -1029,48 +1278,228 @@ class MusicScene extends Phaser.Scene {
 }
 
 /* ================================================================
-   CalibrationScene（完整保留）
+   CalibrationScene — [FIX-3] 重新設計：聽聲按螢自動架構
+   流程：
+     1. 按「開始」→ 播放節拍聲（每 500ms 一拍）
+     2. 玩家跟著節拍點擊螢幕
+     3. 自動計算平均 offset 並即時顯示
+     4. 按「完成」儲存並回到 MusicScene
 ================================================================ */
 class CalibrationScene extends Phaser.Scene {
     constructor() { super('CalibrationScene'); }
-    preload() { this.load.audio('tick','assets/tick.wav'); this.load.image('ui_bg','assets/your_image.jpg'); }
+
+    preload() {
+        this.load.audio('tick', 'assets/tick.wav');
+        this.load.image('ui_bg', 'assets/your_image.jpg');
+    }
+
     create() {
-        const W=this.cameras.main.width,H=this.cameras.main.height;
-        this.offsetSamples=[]; this.isRunning=false; this.bpm=120; this.interval=60000/this.bpm;
-        this.add.text(W/2,H*0.3,'點擊節拍進行校準',{fontSize:'20px',fill:'#fff'}).setOrigin(0.5);
-        this.resultText=this.add.text(W/2,H*0.6,'',{fontSize:'18px',fill:'#aaffaa'}).setOrigin(0.5);
-        this.add.text(W/2,H*0.8,'開始校準',{fontSize:'22px',backgroundColor:'#333',padding:{x:20,y:10}})
-            .setOrigin(0.5).setInteractive().on('pointerdown',()=>this.startCalibration());
-        this.input.on('pointerdown',()=>{
-            if(!this.isRunning)return;
-            const now=this.sound.context.currentTime*1000;
-            const beatIndex=Math.round((now-this.startTime)/this.interval);
-            this.offsetSamples.push(now-(this.startTime+beatIndex*this.interval));
-            this._flash();
+        const W = this.cameras.main.width, H = this.cameras.main.height;
+
+        // 背景
+        this.add.image(W/2, H/2, 'ui_bg').setDisplaySize(W, H).setAlpha(0.6);
+        this.add.rectangle(W/2, H/2, W, H, 0x050510, 0.75);
+
+        this.bpm = 120;
+        this.intervalMs = 60000 / this.bpm;  // 500ms
+        this.offsetSamples = [];
+        this.isRunning = false;
+        this.beatCount = 0;
+        this._beatTimer = null;
+        this._flashRect = null;
+        this.startAudioTime = 0;
+
+        // ── 標題 ──
+        this.add.text(W/2, H*0.07, 'TIMING 校準', {
+            fontSize: '22px', fill: '#d4caff', fontFamily: 'monospace', letterSpacing: 6,
+        }).setOrigin(0.5);
+
+        this.add.text(W/2, H*0.14, '聽到節拍聲後，跟著拍子點擊螢幕', {
+            fontSize: '14px', fill: '#6655aa', fontFamily: "'Noto Sans TC', monospace",
+        }).setOrigin(0.5);
+
+        // ── 節拍視覺圈（大圓，會閃爍）──
+        this.beatCircle = this.add.circle(W/2, H*0.42, 80, 0x1a1255, 1);
+        this.beatCircle.setStrokeStyle(2, 0x5a4fff, 0.6);
+
+        this.beatIcon = this.add.text(W/2, H*0.42, '♪', {
+            fontSize: '52px', fill: '#3d3470', fontFamily: 'monospace',
+        }).setOrigin(0.5);
+
+        // ── 樣本計數 & 目前偏移 ──
+        this.samplesTxt = this.add.text(W/2, H*0.60, '點擊次數：0', {
+            fontSize: '15px', fill: '#555577', fontFamily: 'monospace',
+        }).setOrigin(0.5);
+
+        this.offsetTxt = this.add.text(W/2, H*0.66, '平均偏移：— ms', {
+            fontSize: '18px', fill: '#5fffb8', fontFamily: 'monospace',
+        }).setOrigin(0.5);
+
+        this.hintTxt = this.add.text(W/2, H*0.73, '', {
+            fontSize: '13px', fill: '#ffe066', fontFamily: "'Noto Sans TC', monospace",
+        }).setOrigin(0.5);
+
+        // ── 按鈕 ──
+        this.startBtn = this.add.text(W/2, H*0.83, '▶  開始校準', {
+            fontSize: '20px', fill: '#a5e8ff', fontFamily: "'Noto Sans TC', monospace",
+            backgroundColor: '#0d1a2a', padding: { x: 24, y: 12 },
+        }).setOrigin(0.5).setInteractive()
+          .on('pointerover', function(){ this.setStyle({ fill: '#fff' }); })
+          .on('pointerout',  function(){ this.setStyle({ fill: '#a5e8ff' }); })
+          .on('pointerdown', () => this._startCalibration());
+
+        this.doneBtn = this.add.text(W/2, H*0.83, '✓  儲存並返回', {
+            fontSize: '20px', fill: '#5fffb8', fontFamily: "'Noto Sans TC', monospace",
+            backgroundColor: '#0a1f15', padding: { x: 24, y: 12 },
+        }).setOrigin(0.5).setInteractive().setVisible(false)
+          .on('pointerover', function(){ this.setStyle({ fill: '#fff' }); })
+          .on('pointerout',  function(){ this.setStyle({ fill: '#5fffb8' }); })
+          .on('pointerdown', () => this._finishCalibration());
+
+        this.resetBtn = this.add.text(W/2, H*0.91, '↩  重新校準', {
+            fontSize: '15px', fill: '#444466', fontFamily: 'monospace',
+            backgroundColor: '#111122', padding: { x: 16, y: 8 },
+        }).setOrigin(0.5).setInteractive().setVisible(false)
+          .on('pointerover', function(){ this.setStyle({ fill: '#aaa' }); })
+          .on('pointerout',  function(){ this.setStyle({ fill: '#444466' }); })
+          .on('pointerdown', () => this._resetCalibration());
+
+        // 玩家點擊事件（校準進行中才響應）
+        this.input.on('pointerdown', () => {
+            if (!this.isRunning) return;
+            this._recordTap();
+            this._flashTap();
         });
-        this.add.text(W/2,H*0.9,'完成',{fontSize:'20px',backgroundColor:'#444',padding:{x:20,y:10}})
-            .setOrigin(0.5).setInteractive().on('pointerdown',()=>this.finish());
+
+        // 顯示目前儲存的 offset
+        const saved = parseInt(localStorage.getItem('timingOffset')) || 0;
+        this.hintTxt.setText(`目前儲存值：${saved} ms`);
     }
-    startCalibration() {
-        this.input.once('pointerdown',()=>this.sound.context.resume());
-        this.isRunning=true; this.offsetSamples=[];
-        if(this.timer)this.timer.remove();
-        this.timer=this.time.addEvent({delay:this.interval,loop:true,callback:()=>this.playBeat()});
-        this.startTime=this.sound.context.currentTime*1000;
+
+    _startCalibration() {
+        // 恢復 AudioContext（需要在觸碰事件中）
+        this.sound.context.resume();
+
+        this.isRunning = true;
+        this.offsetSamples = [];
+        this.beatCount = 0;
+        this.startAudioTime = this.sound.context.currentTime * 1000;
+
+        this.startBtn.setVisible(false);
+        this.doneBtn.setVisible(false);
+        this.resetBtn.setVisible(false);
+        this.hintTxt.setText('跟著節拍點擊螢幕！（建議點 8 拍以上）');
+        this.samplesTxt.setText('點擊次數：0');
+        this.offsetTxt.setText('平均偏移：— ms');
+
+        // 立刻播一次 + 開始計時器
+        this._playBeat();
+        this._beatTimer = this.time.addEvent({
+            delay: this.intervalMs,
+            loop: true,
+            callback: () => this._playBeat(),
+        });
     }
-    playBeat() { this.sound.play('tick'); this.lastBeatTime=this.sound.context.currentTime*1000; this._flash(); }
-    _flash() {
-        const W=this.cameras.main.width,H=this.cameras.main.height;
-        const f=this.add.rectangle(W/2,H/2,200,200,0xffffff).setAlpha(0.8);
-        this.tweens.add({targets:f,alpha:0,duration:200,onComplete:()=>f.destroy()});
+
+    _playBeat() {
+        this.sound.play('tick');
+        this.beatCount++;
+
+        // 視覺閃爍：節拍圓變亮
+        this.tweens.add({
+            targets: this.beatCircle,
+            fillColor: 0x3a2aaa,
+            duration: 60,
+            yoyo: true,
+            ease: 'Quad.easeOut',
+        });
+        this.tweens.add({
+            targets: this.beatIcon,
+            scaleX: 1.3, scaleY: 1.3,
+            duration: 60,
+            yoyo: true,
+            ease: 'Quad.easeOut',
+            onComplete: () => {
+                this.beatIcon.setFill('#a5e8ff');
+                this.time.delayedCall(150, () => this.beatIcon.setFill('#3d3470'));
+            },
+        });
+
+        // 校準 8 拍後自動建議停止
+        if (this.beatCount >= 16 && this.offsetSamples.length >= 8) {
+            this._stopCalibration();
+        }
     }
-    finish() {
-        if(!this.offsetSamples.length)return;
-        const avg=this.offsetSamples.reduce((a,b)=>a+b,0)/this.offsetSamples.length;
-        const offset=Math.round(avg);
-        this.resultText.setText(`校準結果: ${offset} ms`);
-        localStorage.setItem('timingOffset',offset);
-        this.isRunning=false; if(this.timer)this.timer.remove();
+
+    _recordTap() {
+        const nowMs = this.sound.context.currentTime * 1000;
+        const elapsed = nowMs - this.startAudioTime;
+        // 找最近的節拍時間點
+        const beatIndex = Math.round(elapsed / this.intervalMs);
+        const expectedMs = beatIndex * this.intervalMs;
+        const offset = elapsed - expectedMs;
+
+        // 過濾掉偏差太大的（可能是誤觸）
+        if (Math.abs(offset) < this.intervalMs * 0.45) {
+            this.offsetSamples.push(offset);
+        }
+
+        // 即時顯示
+        const count = this.offsetSamples.length;
+        this.samplesTxt.setText(`點擊次數：${count}`);
+
+        if (count >= 2) {
+            const avg = this.offsetSamples.reduce((a, b) => a + b, 0) / count;
+            const rounded = Math.round(avg);
+            this.offsetTxt.setText(`平均偏移：${rounded > 0 ? '+' : ''}${rounded} ms`);
+            const quality = Math.abs(rounded) < 20 ? '✓ 很準！' : Math.abs(rounded) < 50 ? '差一點' : '偏差較大';
+            this.hintTxt.setText(`${quality}（共 ${count} 筆樣本）`);
+        }
+    }
+
+    _flashTap() {
+        // 玩家點擊時的視覺反饋：螢幕邊框短暫亮起
+        const W = this.cameras.main.width, H = this.cameras.main.height;
+        if (this._tapFlash) this._tapFlash.destroy();
+        this._tapFlash = this.add.rectangle(W/2, H/2, W, H, 0x5a4fff, 0).setStrokeStyle(4, 0x9a8fff, 0.8);
+        this.tweens.add({
+            targets: this._tapFlash, strokeAlpha: 0, duration: 250,
+            onComplete: () => { if (this._tapFlash) this._tapFlash.destroy(); this._tapFlash = null; },
+        });
+    }
+
+    _stopCalibration() {
+        this.isRunning = false;
+        if (this._beatTimer) { this._beatTimer.remove(); this._beatTimer = null; }
+        this.doneBtn.setVisible(true);
+        this.resetBtn.setVisible(true);
+        if (this.offsetSamples.length < 2) {
+            this.hintTxt.setText('樣本太少，請重新校準。');
+            this._resetCalibration();
+        }
+    }
+
+    _finishCalibration() {
+        if (this.offsetSamples.length < 2) { this._resetCalibration(); return; }
+        const avg = this.offsetSamples.reduce((a, b) => a + b, 0) / this.offsetSamples.length;
+        const offset = Math.round(avg);
+        localStorage.setItem('timingOffset', offset);
+        this.scene.start('MusicScene');
+    }
+
+    _resetCalibration() {
+        if (this._beatTimer) { this._beatTimer.remove(); this._beatTimer = null; }
+        this.isRunning = false;
+        this.offsetSamples = [];
+        this.beatCount = 0;
+        this.startBtn.setVisible(true);
+        this.doneBtn.setVisible(false);
+        this.resetBtn.setVisible(false);
+        this.samplesTxt.setText('點擊次數：0');
+        this.offsetTxt.setText('平均偏移：— ms');
+        const saved = parseInt(localStorage.getItem('timingOffset')) || 0;
+        this.hintTxt.setText(`目前儲存值：${saved} ms`);
+        this.beatIcon.setFill('#3d3470').setScale(1);
     }
 }
 
