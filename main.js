@@ -397,7 +397,6 @@ class GameScene extends Phaser.Scene {
         this._buildDialog();
         this._buildBugForm();
         this._buildGuestbook();
-        
 
         this.input.keyboard.on('keydown-E',     () => this._triggerInteract());
         this.input.keyboard.on('keydown-ENTER', () => this._triggerInteract());
@@ -858,8 +857,6 @@ class GameScene extends Phaser.Scene {
             this.interactBtn.setAlpha(0.5); // 👈 待機淡掉
         }
     }
-
-    
 }
 
 /* ================================================================
@@ -967,106 +964,188 @@ class MusicScene extends Phaser.Scene {
        - Timing 改為「聽聲按螢」自動校準（CalibrationScene）
        - 不再顯示 Timing 數值輸入欄
     ──────────────────────────────────────────────────────── */
+    /* ════════════════════════════════════════════════════════
+       _createPrepareUI
+       直接用 ui_bg 底圖，右半疊透明互動層：
+         ① 延遲校準格子 → 進入 CalibrationScene，顯示目前 offset
+         ② 音符速度格子 → 拖曳滑桿調整速度倍率
+         ③ Start 白色格子 → 開始遊戲
+         ④ 難易度格子 → 純裝飾
+    ════════════════════════════════════════════════════════ */
+   /* ════════════════════════════════════════════════════════
+       _createPrepareUI
+       直接用 ui_bg 底圖，右半疊透明互動層：
+         ① 延遲校準格子 → 進入 CalibrationScene，顯示目前 offset
+         ② 音符速度格子 → 拖曳滑桿調整速度倍率
+         ③ Start 白色格子 → 開始遊戲
+         ④ 難易度格子 → 純裝飾
+    ════════════════════════════════════════════════════════ */
     _createPrepareUI() {
-        const W=this.cameras.main.width, H=this.cameras.main.height;
+        const W = this.cameras.main.width;   // 960
+        const H = this.cameras.main.height;  // 540
+
         this.prepareUI = this.add.container(0, 0).setDepth(50);
 
-        // 背景圖
-        const bg = this.add.image(W/2, H/2, 'ui_bg').setDisplaySize(W, H).setAlpha(0.85);
+        /* ── 底圖填滿 ── */
+        const bg = this.add.image(W / 2, H / 2, 'ui_bg')
+            .setDisplaySize(W, H);
         this.prepareUI.add(bg);
 
-        // 半透明遮罩
-        const mask = this.add.rectangle(W/2, H/2, W, H, 0x050510, 0.72);
-        this.prepareUI.add(mask);
+        /* ════════════════════════════════════
+           ① 延遲校準格子
+           位置：右半上方橫條
+           x: 60%~93%  y: 17%~28%
+        ════════════════════════════════════ */
+        const calibX1 = W * 0.60, calibX2 = W * 0.935;
+        const calibY1 = H * 0.17, calibY2 = H * 0.285;
+        const calibCX = (calibX1 + calibX2) / 2;
+        const calibCY = (calibY1 + calibY2) / 2;
 
-        // ── 標題區 ──
-        const title = this.add.text(W/2, H*0.10, '換日線', {
-            fontSize: '36px', fill: '#d4caff',
-            fontFamily: "'Noto Sans TC', monospace", letterSpacing: 12,
-        }).setOrigin(0.5);
-        this.prepareUI.add(title);
+        // 目前 offset 文字（顯示在格子空白處，右側）
+        const savedOfs = parseInt(localStorage.getItem('timingOffset')) || 0;
+        this.calibOfsText = this.add.text(
+            calibX2 - 40, calibY1 +40,
+            `${savedOfs > 0 ? '+' : ''}${savedOfs} ms`,
+            {
+                fontSize: '19px', fill: '#a5e8ff',
+                fontFamily: 'monospace', align: 'right',
+            }
+        ).setOrigin(1, 0).setDepth(52);
+        // 不放進 prepareUI container，讓它獨立在最上層
 
-        const sub = this.add.text(W/2, H*0.10+48, 'RHYTHM GAME', {
-            fontSize: '12px', fill: '#3d3470', fontFamily: 'monospace', letterSpacing: 6,
-        }).setOrigin(0.5);
-        this.prepareUI.add(sub);
+        // hover 高亮層
+        const calibHover = this.add.rectangle(
+            calibCX, calibCY,
+            calibX2 - calibX1, calibY2 - calibY1,
+            0x7c6fff, 0
+        ).setDepth(50);
+        this.prepareUI.add(calibHover);
 
-        // ── 分隔線 ──
-        const divLine = this.add.rectangle(W/2, H*0.22, W*0.5, 1, 0x2a2460);
-        this.prepareUI.add(divLine);
+        // 透明互動區
+        this.add.rectangle(
+            calibCX, calibCY,
+            calibX2 - calibX1, calibY2 - calibY1,
+            0xffffff, 0
+        ).setDepth(55).setInteractive()
+          .on('pointerover', () => calibHover.setAlpha(0.18))
+          .on('pointerout',  () => calibHover.setAlpha(0))
+          .on('pointerdown', () => {
+              this.scene.start('CalibrationScene');
+          });
 
-        // ── 速度設定區 ──
-        const speedLabel = this.add.text(W/2, H*0.27, '落速設定', {
-            fontSize: '13px', fill: '#6655aa', fontFamily: 'monospace', letterSpacing: 4,
-        }).setOrigin(0.5);
-        this.prepareUI.add(speedLabel);
+        /* ════════════════════════════════════
+           ② 音符速度格子（放滑桿）
+           位置：x: 58%~89%  y: 31%~51%
+        ════════════════════════════════════ */
+        const speedX1 = W * 0.575, speedX2 = W * 0.895;
+        const speedY1 = H * 0.315, speedY2 = H * 0.510;
+        const speedCX = (speedX1 + speedX2) / 2;
+        const speedCY = (speedY1 + speedY2) / 2;
 
-        this.speedValueTxt = this.add.text(W/2, H*0.34, '1.00×', {
-            fontSize: '32px', fill: '#d4caff', fontFamily: 'monospace',
-        }).setOrigin(0.5);
-        this.prepareUI.add(this.speedValueTxt);
+        // hover 高亮
+        const speedHover = this.add.rectangle(
+            speedCX, speedCY,
+            speedX2 - speedX1, speedY2 - speedY1,
+            0x5fb8ff, 0
+        ).setDepth(51);
+        this.prepareUI.add(speedHover);
+      
+        // 速度值文字
+        this.speedValueTxt = this.add.text(
+            speedCX, speedY1 + 10,
+            '1.00×',
+            { fontSize: '15px', fill: '#d4caff', fontFamily: 'monospace' }
+        ).setOrigin(0.5, 0).setDepth(52);
 
-        // 速度調整按鈕
-        const btnStyle = {
-            fontSize: '22px', fill: '#b3aaff', fontFamily: 'monospace',
-            backgroundColor: '#1a1233', padding: { x: 18, y: 10 },
+        // 滑桿
+        const slY   = speedCY + 14;
+        const slX0  = speedX1 + 14;
+        const slLen = speedX2 - speedX1 - 28;
+
+        const slTrackG = this.add.graphics().setDepth(52);
+        slTrackG.lineStyle(3, 0x4a4d78, 1);
+        slTrackG.lineBetween(slX0, slY, slX0 + slLen, slY);
+
+        const slFillG = this.add.graphics().setDepth(52);
+        const _redrawFill = (px) => {
+            slFillG.clear();
+            slFillG.fillStyle(0x7c6fff, 0.85);
+            slFillG.fillRect(slX0, slY - 3, px - slX0, 6);
         };
-        const minusBtn = this.add.text(W/2 - 90, H*0.34, '－', btnStyle)
-            .setOrigin(0.5).setInteractive()
-            .on('pointerdown', () => {
-                this.speedMultiplier = Math.max(0.5, parseFloat((this.speedMultiplier - 0.25).toFixed(2)));
-                this.speedValueTxt.setText(this.speedMultiplier.toFixed(2) + '×');
-            });
-        const plusBtn = this.add.text(W/2 + 90, H*0.34, '＋', btnStyle)
-            .setOrigin(0.5).setInteractive()
-            .on('pointerdown', () => {
-                this.speedMultiplier = Math.min(3.0, parseFloat((this.speedMultiplier + 0.25).toFixed(2)));
-                this.speedValueTxt.setText(this.speedMultiplier.toFixed(2) + '×');
-            });
-        this.prepareUI.add(minusBtn);
-        this.prepareUI.add(plusBtn);
+        _redrawFill(slX0 + slLen / 2);
 
-        // ── Timing 校準區 ──
-        const timingLabel = this.add.text(W/2, H*0.48, 'TIMING 校準', {
-            fontSize: '13px', fill: '#6655aa', fontFamily: 'monospace', letterSpacing: 4,
-        }).setOrigin(0.5);
-        this.prepareUI.add(timingLabel);
+        const slHandle = this.add.circle(slX0 + slLen / 2, slY, 9, 0xd4caff)
+            .setDepth(53).setInteractive({ draggable: true });
 
-        // 顯示目前 offset
-        this.timingValueTxt = this.add.text(W/2, H*0.55, `目前偏移：${this.timingOffset} ms`, {
-            fontSize: '16px', fill: '#7c70c0', fontFamily: 'monospace',
-        }).setOrigin(0.5);
-        this.prepareUI.add(this.timingValueTxt);
+        this.input.setDraggable(slHandle);
+        this.input.on('drag', (pointer, obj, dragX) => {
+            if (obj !== slHandle) return;
+            const cx = Phaser.Math.Clamp(dragX, slX0, slX0 + slLen);
+            obj.x = cx;
+            const t = (cx - slX0) / slLen;
+            this.speedMultiplier = parseFloat((0.5 + t * 2.5).toFixed(2));
+            this.speedValueTxt.setText(this.speedMultiplier.toFixed(2) + '×');
+            _redrawFill(cx);
+        });
 
-        // 前往校準按鈕
-        const calibBtn = this.add.text(W/2, H*0.62, '🎵  聽聲按螢校準', {
-            fontSize: '17px', fill: '#a5e8ff', fontFamily: "'Noto Sans TC', monospace",
-            backgroundColor: '#0d1a2a', padding: { x: 20, y: 10 },
-            align: 'center',
-        }).setOrigin(0.5).setInteractive()
-          .on('pointerover', function() { this.setStyle({ fill: '#fff' }); })
-          .on('pointerout',  function() { this.setStyle({ fill: '#a5e8ff' }); })
-          .on('pointerdown', () => { this.scene.start('CalibrationScene'); });
-        this.prepareUI.add(calibBtn);
+        // 速度格子 hover（滑桿操作時不吃 hover）
+        this.add.rectangle(
+            speedCX, speedCY,
+            speedX2 - speedX1, speedY2 - speedY1,
+            0xffffff, 0
+        ).setDepth(51).setInteractive()
+          .on('pointerover', () => speedHover.setAlpha(0.10))
+          .on('pointerout',  () => speedHover.setAlpha(0))
+          .setInteractive({ useHandCursor: false })
+        .disableInteractive();
 
-        // ── 開始按鈕 ──
-        const startBtn = this.add.text(W/2, H*0.80, '▶   開始遊戲', {
-            fontSize: '22px', fill: '#d4caff', fontFamily: "'Noto Sans TC', monospace",
-            backgroundColor: '#1a1055', padding: { x: 36, y: 14 },
-            align: 'center',
-        }).setOrigin(0.5).setInteractive()
-          .on('pointerover', function() { this.setStyle({ backgroundColor: '#3a2aaa', fill: '#fff' }); })
-          .on('pointerout',  function() { this.setStyle({ backgroundColor: '#1a1055', fill: '#d4caff' }); })
+        /* ════════════════════════════════════
+           ③ Start 白色格子
+           位置：x: 67%~87%  y: 71%~86%
+        ════════════════════════════════════ */
+        const startX1 = W * 0.665, startX2 = W * 0.875;
+        const startY1 = H * 0.705, startY2 = H * 0.865;
+        const startCX = (startX1 + startX2) / 2;
+        const startCY = (startY1 + startY2) / 2;
+
+        const startHover = this.add.rectangle(
+            startCX, startCY,
+            startX2 - startX1, startY2 - startY1,
+            0xffffff, 0
+        ).setDepth(51);
+        this.prepareUI.add(startHover);
+
+        this.add.rectangle(
+            startCX, startCY,
+            startX2 - startX1, startY2 - startY1,
+            0xffffff, 0
+        ).setDepth(55).setInteractive()
+          .on('pointerover', () => startHover.setAlpha(0.22))
+          .on('pointerout',  () => startHover.setAlpha(0))
           .on('pointerdown', () => this._startGame());
-        this.prepareUI.add(startBtn);
 
-        // 閃爍動畫
+        /* ════════════════════════════════════
+           把獨立文字加進 container（讓 destroy 時一起清除）
+        ════════════════════════════════════ */
+        this.prepareUI.add(slTrackG);
+        this.prepareUI.add(slFillG);
+        this.prepareUI.add(slHandle);
+        this.prepareUI.add(this.speedValueTxt);
+        this.prepareUI.add(this.calibOfsText);
+
+        /* ── Start 閃爍提示 ── */
+        // 用半透明白框閃爍，疊在 Start 格子上
+        const startGlow = this.add.rectangle(
+            startCX, startCY,
+            startX2 - startX1 - 6, startY2 - startY1 - 6,
+            0xffffff, 0
+        ).setStrokeStyle(2, 0xffffff, 0.7).setDepth(52);
+        this.prepareUI.add(startGlow);
         this.tweens.add({
-            targets: startBtn, alpha: 0.75, duration: 950,
-            yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+            targets: startGlow, strokeAlpha: 0.15,
+            duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
         });
     }
-
     _startGame() {
         if(!this.noteQueue.length){console.log('加載中...');return;}
         this.prepareUI.destroy(); this.input.off('drag');
@@ -1374,6 +1453,23 @@ class CalibrationScene extends Phaser.Scene {
         // 顯示目前儲存的 offset
         const saved = parseInt(localStorage.getItem('timingOffset')) || 0;
         this.hintTxt.setText(`目前儲存值：${saved} ms`);
+
+        const backBtn = this.add.text(20, 20, '← 返回', {
+            fontSize: '18px',
+            backgroundColor: '#333',
+            padding: { x: 10, y: 5 }
+        })
+        .setInteractive()
+        .on('pointerdown', () => {
+
+            if (this.offsetSamples.length >= 2) {
+                const avg = this.offsetSamples.reduce((a, b) => a + b, 0) / this.offsetSamples.length;
+                const offset = Math.round(avg);
+                localStorage.setItem('timingOffset', offset);
+            }
+
+            this.scene.start('MusicScene');
+        });
     }
 
     _startCalibration() {
@@ -1425,10 +1521,6 @@ class CalibrationScene extends Phaser.Scene {
             },
         });
 
-        // 校準 8 拍後自動建議停止
-        if (this.beatCount >= 16 && this.offsetSamples.length >= 8) {
-            this._stopCalibration();
-        }
     }
 
     _recordTap() {
