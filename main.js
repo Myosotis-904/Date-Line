@@ -1441,7 +1441,8 @@ class CalibrationScene extends Phaser.Scene {
     constructor() { super('CalibrationScene'); }
 
     preload() {
-        this.load.audio('tick', 'assets/tick.wav');
+        this.load.audio('tick', 'assets/tick_1.mp3');
+        this.load.audio('tick_high', 'assets/tick_2.mp3');
         this.load.image('ui_bg', 'assets/your_image.jpg');
     }
 
@@ -1579,43 +1580,18 @@ class CalibrationScene extends Phaser.Scene {
             loop: true,
             callback: () => this._playBeat(),
         });
-
-        // 8拍後自動停止讓玩家確認
-        this.time.delayedCall(this.intervalMs * 10, () => {
-            if (this.isRunning) this._stopCalibration();
-        });
     }
 
-    _playBeat() {
+_playBeat() {
+    this.beatCount++;
+
+    // 🎵 第4拍用高音
+    if (this.beatCount % 4 === 0) {
+        this.sound.play('tick_high');
+    } else {
         this.sound.play('tick');
-        this.beatCount++;
-
-        /* ── [iOS-FIX-4] 改用 setFillStyle 取代 fillColor tween（部分 Phaser 版本不支援）── */
-        this.beatCircle.setFillStyle(0x3a2aaa);
-        this.time.delayedCall(80, () => {
-            if (this.beatCircle && this.beatCircle.active) {
-                this.beatCircle.setFillStyle(0x1a1255);
-            }
-        });
-
-        this.tweens.add({
-            targets: this.beatIcon,
-            scaleX: 1.3, scaleY: 1.3,
-            duration: 60,
-            yoyo: true,
-            ease: 'Quad.easeOut',
-            onComplete: () => {
-                if (this.beatIcon && this.beatIcon.active) {
-                    this.beatIcon.setFill('#a5e8ff');
-                    this.time.delayedCall(150, () => {
-                        if (this.beatIcon && this.beatIcon.active) {
-                            this.beatIcon.setFill('#3d3470');
-                        }
-                    });
-                }
-            },
-        });
     }
+}
 
     _recordTap() {
         const nowMs = this.sound.context.currentTime * 1000;
