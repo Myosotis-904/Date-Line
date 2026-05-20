@@ -291,6 +291,7 @@ class GameScene extends Phaser.Scene {
         this.load.image('card',    'assets/card.png');     // [NEW-2] 邀請卡
         this.load.spritesheet('wave', 'assets/wave.png',{ frameWidth: 2000, frameHeight: 1240 });
         this.load.spritesheet('player', 'assets/player.png', { frameWidth: 256, frameHeight: 256 });
+         this.load.audio('bgm_game', './assets/bgm.mp3');
     }
 
     create() {
@@ -411,6 +412,16 @@ class GameScene extends Phaser.Scene {
 
         this.input.keyboard.on('keydown-E',     () => this._triggerInteract());
         this.input.keyboard.on('keydown-ENTER', () => this._triggerInteract());
+
+        this.bgm = this.sound.add('bgm_game', {
+            loop: true,
+            volume: 0.5
+        });
+
+        this.bgm.play();
+        this.events.on('shutdown', () => {
+            if (this.bgm) this.bgm.stop();
+        });
     }
 
     /* ────────────────────────────────────────────────────────
