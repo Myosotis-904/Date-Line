@@ -181,7 +181,7 @@ const LANDMARKS = [
         nearDist: 160, interactDist: 200,
         dialog: {
             title: '可疑的綠色兔子',
-            lines: ['發現 bug 或有建議嗎？', '點下面填寫回報，我會努力修修看:)'],
+            lines: ['發現 bug 或有建議嗎？', '點下面填寫回報，我會努力修修看:)','呃呃在跟邪惡背板搏鬥中，25號之後會認真修BUG的:(','嗚嗚我恨畫畫'],
             action: 'bug_report',
             actionLabel: '📝 填寫回報',
         },
