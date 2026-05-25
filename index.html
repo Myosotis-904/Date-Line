@@ -1,50 +1,39 @@
-```html
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<title>My Game</title>
-
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-
-<style>
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    overflow: hidden;
-    background: black;
-}
-
-#game-container {
-    width: 100vw;
-    height: 100vh;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>換日線 DATELINE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            background: #000;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+        }
+        #game-container canvas { display: block; }
+    </style>
 </head>
-
 <body>
+    <div id="game-container"></div>
 
-<div id="game-container"></div>
+    <!-- Phaser 引擎 -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
 
-<!-- Phaser -->
-<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+    <!-- ① 系統層 -->
+    <script src="./js/config.js"></script>
+    <script src="./js/utils.js"></script>
 
-<!-- 隱藏手機工具列 -->
-<script>
-function hideAddressBar() {
-    document.body.style.height = '200vh';
-    setTimeout(() => {
-        window.scrollTo(0, 1);
-        document.body.style.height = '100vh';
-    }, 50);
-}
-window.addEventListener('load', hideAddressBar);
-window.addEventListener('orientationchange', hideAddressBar);
-</script>
+    <!-- ② 場景層 -->
+    <script src="./js/scenes/StartScene.js"></script>
+    <script src="./js/scenes/GameScene.js"></script>
+    <script src="./js/scenes/MusicScene.js"></script>
+    <script src="./js/scenes/CalibrationScene.js"></script>
 
-<!-- 主程式 -->
-<script src="main.js"></script>
-
+    <!-- ④ 主程式 -->
+    <script src="./js/main.js"></script>
 </body>
 </html>
