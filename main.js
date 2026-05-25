@@ -202,20 +202,20 @@ const LANDMARKS = [
         },
     },
     // ── [NEW-2] 漂流瓶地標 ──
-    {
-        key: 'buttle', x: 300, y: 300, scale: 0.9,
-        colW: 35, colH: 50,
-        nearDist: 160, interactDist: 200,
-        floatAmplitude: 8,
-        floatSpeed: 1.9,
-        hasShadow: true,
-        dialog: {
-            title: '漂流瓶',
-            lines: ['瓶子裡好像裝著什麼...', '要打開來看看嗎？'],
-            action: 'show_card',
-            actionLabel: '💌 打開漂流瓶',
-        },
-    },
+    // {
+    //     key: 'buttle', x: 300, y: 300, scale: 0.9,
+    //     colW: 35, colH: 50,
+    //     nearDist: 160, interactDist: 200,
+    //     floatAmplitude: 8,
+    //     floatSpeed: 1.9,
+    //     hasShadow: true,
+    //     dialog: {
+    //         title: '漂流瓶',
+    //         lines: ['瓶子裡好像裝著什麼...', '要打開來看看嗎？'],
+    //         action: 'show_card',
+    //         actionLabel: '💌 打開漂流瓶',
+    //     },
+    // },
 
 ];
 
