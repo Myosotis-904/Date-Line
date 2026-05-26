@@ -10,7 +10,7 @@
      4. scenes/GameScene.js     ← 主探索場景
      5. scenes/MusicScene.js    ← 音樂節奏遊戲
      6. scenes/CalibrationScene.js ← 音訊校準
-
+     7. scenes/TransitionScene.js  ← 🌟 全局 Loading 過場場景
      8. main.js                 ← Phaser 初始化（本檔）
 ================================================================ */
 const config = {
@@ -18,7 +18,7 @@ const config = {
     parent: 'game-container',
     width: 960,
     height: 540,
-    backgroundColor: '#000000',
+    backgroundColor: '#0c0c22', // 🚀 預設底色也同步調整為深海藍
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -29,10 +29,8 @@ const config = {
         GameScene,
         MusicScene,
         CalibrationScene,
-        
+        TransitionScene // 🚀 註冊全新轉場加載場景
     ],
 };
 
 new Phaser.Game(config);
-
-
