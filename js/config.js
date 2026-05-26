@@ -85,7 +85,7 @@ const LANDMARKS = [
         colW: 40, colH: 55,
         nearDist: 160, interactDist: 200,
         dialog: {
-            title: '神奇海螺(留言板)',
+            title: '神奇海螺(留言板)［系統維護中］',
             lines: ['為什麼不告訴神奇海螺呢?', ' ', '(神奇海螺會把秘密告訴所有人。)'],
             action: 'guestbook',
             actionLabel: '💬 開啟留言板',
@@ -142,7 +142,7 @@ const LANDMARKS = [
         colW: 35, colH: 50,
         nearDist: 160, interactDist: 200,
         dialog: {
-            title: '可疑的綠色兔子',
+            title: '可疑的綠色兔子［系統維護中］',
             lines: ['發現 bug 或有建議嗎？', '點下面填寫回報，我會努力修修看:)','絕望的作者被背板背刺了','比較複雜的BUG會在周三之後處理，大感謝'],
             action: 'bug_report',
             actionLabel: '📝 填寫回報',
