@@ -58,7 +58,7 @@ class StartScene extends Phaser.Scene {
             // 隱藏閃爍的提示文字
             hint.destroy();
 
-            // 🎬 呼叫並彈出第一版精美公告視窗
+            // 🎬 呼叫並彈出公告視窗
             this._showNoticeModal(W, H);
         };
 
@@ -98,6 +98,7 @@ class StartScene extends Phaser.Scene {
         modalContainer.add(titleTxt);
 
         // ── 📝 遊戲資訊內文 ──
+
         const newsLines = [
                     '【 換日線 DATELINE - 專案公告 】',
                     '',
@@ -106,7 +107,7 @@ class StartScene extends Phaser.Scene {
                     ' ',
                     '[更新公告]  重新處理了音遊相關的問題與畫面優化。',
 
-                    '           新增了場景切換動畫，卡頓問題處理中。'
+                    '                  新增了場景切換動畫，卡頓問題處理中。'
         ];
 
         // 依序渲染公告文字行
@@ -152,8 +153,8 @@ class StartScene extends Phaser.Scene {
             .on('pointerdown', () => {
                 
                 // 📱 ⚡ 【自動滾動驅逐工具列】
-                // 點擊瞬間向下捲動 40px，欺騙 iOS Safari 讓其原生工具列縮小收縮！
-                window.scrollTo(0, 40);
+                // 點擊瞬間向下捲動 60px，此時網頁尚未鎖死，Safari 就會順利觸發隱藏工具列的原生行為！
+                window.scrollTo(0, 60);
 
                 // 點擊後將整組公告淡出，並流暢切換至下一個 Scene
                 this.tweens.add({
@@ -163,12 +164,17 @@ class StartScene extends Phaser.Scene {
                     onComplete: () => {
                         
                         // 📱 ⚡ 【網頁安全定位卡死鎖定】
-                        // 工具列退場後，立刻消除網頁多給的 60px，並用 fixed 鎖死定位，防止遊戲中畫面彈跳
+                        // 工具列退場後，立刻消除網頁多給的 80px 空間，並用 fixed 鎖死定位，防止遊戲中畫面彈跳
                         try {
                             document.documentElement.style.height = '100dvh';
                             document.body.style.height = '100dvh';
                             document.body.style.overflow = 'hidden';
                             document.body.style.position = 'fixed';
+                            
+                            // 🚀 核心重新整理：通知 Phaser 引擎工具列縮小了，立刻刷新尺寸完美填滿
+                            if (this.scale) {
+                                this.scale.refresh();
+                            }
                         } catch (e) {}
 
                         // 優雅淡出畫布並切換場景
