@@ -1,8 +1,7 @@
 'use strict';
 
 /* ================================================================
-   StartScene — 標題畫面
-   （整合：iOS工具列收縮、音訊低延遲激醒、科技風資訊公告彈窗）
+   StartScene — 標題畫面（整合：iOS 滾動驅逐工具列、音訊硬體激醒、精美公告彈窗）
 ================================================================ */
 class StartScene extends Phaser.Scene {
     constructor() { super('StartScene'); }
@@ -14,7 +13,6 @@ class StartScene extends Phaser.Scene {
     create() {
         const W = this.scale.width, H = this.scale.height;
 
-        // 1. 渲染背景與標題文字
         this.add.image(W/2 - 5, H/2, 'start_bg').setDisplaySize(W, H);
 
         this.add.text(W / 2, H * 0.578, 'D A T E L I N E', {
@@ -39,21 +37,16 @@ class StartScene extends Phaser.Scene {
                 this.input.keyboard.off('keydown', handleStartTrigger);
             }
 
-            // 📱 【iOS 密技一：強迫收縮工具列並放大網頁畫布】
+            // 📱 【核心優化：嘗試調用全螢幕 API（安卓裝置在此處會直接進入完美全螢幕）】
             try {
                 let docElm = document.documentElement;
                 if (docElm.requestFullscreen) docElm.requestFullscreen();
                 else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen();
-            } catch (e) {
-                console.log("全螢幕 API 觸發受阻");
-            }
-            // 延遲 100 毫秒欺騙 iOS Safari 系統，逼其收起工具列
-            setTimeout(() => { window.scrollTo(0, 1); }, 100);
+            } catch (e) {}
 
-            // 📱 【iOS 密技二：低延遲 Web Audio 音訊核心強效激醒】
+            // 🎵 【低延遲 Web Audio 核心硬體激醒】
             if (this.sound.context) {
                 this.sound.context.resume().then(() => {
-                    // 播放一極小空白緩衝信號，切換 iOS 系統至低延遲音響模式
                     let buffer = this.sound.context.createBuffer(1, 1, 22050);
                     let source = this.sound.context.createBufferSource();
                     source.buffer = buffer;
@@ -62,10 +55,10 @@ class StartScene extends Phaser.Scene {
                 }).catch(() => {});
             }
 
-            // 隱藏閃爍的「觸碰或按任意鍵開始」
+            // 隱藏閃爍的提示文字
             hint.destroy();
 
-            // 🎬 呼叫並彈出科技感遊戲資訊公告視窗
+            // 🎬 呼叫並彈出第一版精美公告視窗
             this._showNoticeModal(W, H);
         };
 
@@ -75,7 +68,7 @@ class StartScene extends Phaser.Scene {
     }
 
     // ================================================================
-    // ✨ 【公告系統】 偶像夢幻祭/世界計畫風格 — 遊戲資訊更新公告彈窗
+    // ✨ 精美公告系統 — 整合「自動滾動隱藏工具列」機制
     // ================================================================
     _showNoticeModal(W, H) {
         // 建立元件容器，方便最後一鍵淡出
@@ -104,17 +97,16 @@ class StartScene extends Phaser.Scene {
         titleTxt.setShadow(0, 0, '#5fffb8', 8, true, true);
         modalContainer.add(titleTxt);
 
-        // ── 📝 你可以在這裡隨時調整/修改你想更新的遊戲資訊內文 ──
+        // ── 📝 遊戲資訊內文 ──
         const newsLines = [
-            '【 換日線 DATELINE - 專案公告 】',
-            '',
-            '✨ 歡迎來到雄女第 78 屆畢業典禮特設互動網站！',
-            '📢 [重要提示] 建議保持在橫螢幕狀態下遊玩。',
-            ' ',
-            '[更新公告]  重新處理了音遊相關的問題與畫面優化。',
-            '           新增了場景切換動畫，卡頓問題處理中。。'
+                    '【 換日線 DATELINE - 專案公告 】',
+                    '',
+                    '✨ 歡迎來到雄女第 78 屆畢業典禮特設互動網站！',
+                    '📢 [重要提示] 建議保持在橫螢幕狀態下遊玩。',
+                    ' ',
+                    '[更新公告]  重新處理了音遊相關的問題與畫面優化。',
 
-
+                    '           新增了場景切換動畫，卡頓問題處理中。'
         ];
 
         // 依序渲染公告文字行
@@ -158,15 +150,31 @@ class StartScene extends Phaser.Scene {
                 btnTxt.setFill('#5fffb8');
             })
             .on('pointerdown', () => {
+                
+                // 📱 ⚡ 【自動滾動驅逐工具列】
+                // 點擊瞬間向下捲動 40px，欺騙 iOS Safari 讓其原生工具列縮小收縮！
+                window.scrollTo(0, 40);
+
                 // 點擊後將整組公告淡出，並流暢切換至下一個 Scene
                 this.tweens.add({
                     targets: modalContainer,
                     alpha: 0,
                     duration: 300,
                     onComplete: () => {
+                        
+                        // 📱 ⚡ 【網頁安全定位卡死鎖定】
+                        // 工具列退場後，立刻消除網頁多給的 60px，並用 fixed 鎖死定位，防止遊戲中畫面彈跳
+                        try {
+                            document.documentElement.style.height = '100dvh';
+                            document.body.style.height = '100dvh';
+                            document.body.style.overflow = 'hidden';
+                            document.body.style.position = 'fixed';
+                        } catch (e) {}
+
+                        // 優雅淡出畫布並切換場景
                         this.cameras.main.fadeOut(500, 0, 0, 0);
                         this.cameras.main.once('camerafadeoutcomplete', () => {
-                            this.scene.start('GameScene'); // 完美交棒給有粒子讀取條的 GameScene
+                            this.scene.start('GameScene'); 
                         });
                     }
                 });
