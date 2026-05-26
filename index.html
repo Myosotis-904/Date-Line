@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>換日線 DATELINE</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap\">\
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap">
     <style>
         * { 
             margin: 0; 
@@ -18,24 +18,38 @@
         
         html, body {
             width: 100%; 
-            /* ⚡ 密技：初始高度多給 60 像素，讓 iOS Safari 判定網頁可以滾動，以便稍後點擊時驅逐工具列 */
-            height: calc(100dvh + 60px); 
+            /* ⚡ 關鍵修正一：給予足夠的滾動空間（80px），確保 iOS 判定為可滾動網頁，藉此驅逐工具列 */
+            height: calc(100dvh + 80px); 
             background: #000;
             display: flex; 
             align-items: center; 
             justify-content: center;
-            /* ⚡ 允許初始縱向滾動，解鎖 iOS 絲滑滾動機制 */
             overflow-y: scroll;
             -webkit-overflow-scrolling: touch;
         }
         
+        /* 📱 ⚡ 關鍵修正二：徹底解決全面屏 iPhone 橫向畫面右偏問題 */
+        /* 建立一個強制填滿動態視窗的絕對容器，並強制內部的 Phaser Canvas 永遠絕對居中 */
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         #game-container canvas { 
-            display: block; 
+            display: block !important; 
+            position: absolute !important;
+            left: 50% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
         }
     </style>
 </head>
 <body>
-    <div id=\"game-container\"></div>
+    <div id="game-container"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
 
