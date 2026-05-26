@@ -7,12 +7,107 @@ class MusicScene extends Phaser.Scene {
     constructor() { super('MusicScene'); }
 
     preload() {
+        // === 1. 節奏遊戲原本需要的音樂與音效資源載入 ===
         this.load.audio('music', 'assets/music.mp3');
         this.load.image('ui_bg', 'assets/your_image.jpg');
         this.load.audio('prepare_bgm', 'assets/prepare.mp3');
-        
-        // 📥 6. 載入打擊音效回饋
         this.load.audio('hitsound', 'assets/hitsound.mp3'); 
+
+        // === 2. ✨ 【完美同步移植】 — Loading 視覺系統 ===
+        const W = this.scale.width;
+        const H = this.scale.height;
+
+        // 🟢 建立粒子繪圖層 (在最底層漂浮)
+        const particleGfx = this.add.graphics().setDepth(1);
+        const particles = [];
+        
+        // 初始化 40 個電子科技微粒數據
+        for (let i = 0; i < 40; i++) {
+            particles.push({
+                x: Math.random() * W,
+                y: Math.random() * H + H * 0.5, // 隨機分佈在螢幕中下方
+                size: Math.random() * 4 + 2,    // 小方塊大小
+                speedY: -(Math.random() * 1.2 + 0.4), // 緩慢向上漂浮
+                alpha: Math.random() * 0.5 + 0.2,
+                color: Math.random() > 0.4 ? 0x5fffb8 : 0x6c5fff // 藍綠色與紫外光色
+            });
+        }
+
+        // 🟣 建立進度條繪圖層 (在中間)
+        const progressGfx = this.add.graphics().setDepth(2);
+
+        // ⚪ 建立故障風 LOADING... 提示文字
+        const loadTxt = this.add.text(W / 2, H / 2 - 35, 'LOADING...', {
+            fontSize: '26px', 
+            fontFamily: 'Arial Black', 
+            fontWeight: '900', 
+            fill: '#ffffff',
+            letterSpacing: 4
+        }).setOrigin(0.5).setDepth(3);
+        
+        // 為文字加上發光的霓虹陰影
+        loadTxt.setShadow(0, 0, '#5fffb8', 12, true, true);
+
+        // 💥 文字的科技故障風 (Glitch) 定時隨機錯位動畫
+        const glitchTimer = this.time.addEvent({
+            delay: 350,
+            callback: () => {
+                if (Math.random() > 0.55) {
+                    loadTxt.x = W / 2 + (Math.random() * 10 - 5);
+                    loadTxt.setStyle({ fill: Math.random() > 0.5 ? '#5fffb8' : '#6c5fff' });
+                    
+                    this.time.delayedCall(70, () => {
+                        loadTxt.x = W / 2;
+                        loadTxt.setStyle({ fill: '#ffffff' });
+                    });
+                }
+            },
+            loop: true
+        });
+
+        // 🔄 監聽 Phaser 的載入進度事件，即時重繪進度條
+        this.load.on('progress', (value) => {
+            progressGfx.clear();
+            // 1. 繪製極細的科技感背景軌道外框
+            progressGfx.lineStyle(1, 0x3d3470, 0.4);
+            progressGfx.strokeRect(W / 2 - 160, H / 2, 320, 6);
+
+            // 2. 繪製填滿的發光進度條本體
+            progressGfx.fillStyle(0x5fffb8, 0.9); 
+            progressGfx.fillRect(W / 2 - 160, H / 2 + 1, 320 * value, 4);
+        });
+
+        // 🏃 驅動背景粒子緩慢往上飄
+        const updateListener = () => {
+            particleGfx.clear();
+            particles.forEach(p => {
+                p.y += p.speedY;
+                if (p.y < -10) {
+                    p.y = H + 10;
+                    p.x = Math.random() * W;
+                }
+                particleGfx.fillStyle(p.color, p.alpha);
+                particleGfx.fillRect(p.x, p.y, p.size, p.size);
+            });
+        };
+        this.events.on('update', updateListener);
+
+        // 🎬 當音樂與音效加載完畢後，優雅清場，釋放記憶體
+        this.load.on('complete', () => {
+            glitchTimer.remove(); 
+            this.events.off('update', updateListener); 
+            
+            this.tweens.add({
+                targets: [particleGfx, progressGfx, loadTxt],
+                alpha: 0,
+                duration: 400,
+                onComplete: () => {
+                    particleGfx.destroy();
+                    progressGfx.destroy();
+                    loadTxt.destroy();
+                }
+            });
+        });
     }
 
     create() {
