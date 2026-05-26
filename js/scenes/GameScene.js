@@ -6,7 +6,8 @@
 class GameScene extends Phaser.Scene {
     constructor() { super('GameScene'); }
 
-    preload() {
+   preload() {
+        // === 1. 原有的資源載入 ===
         this.load.image('map',      'assets/map.png');
         this.load.image('stage',    'assets/stage.png');
         this.load.image('tree1',    'assets/tree1.png');
@@ -25,6 +26,110 @@ class GameScene extends Phaser.Scene {
         this.load.spritesheet('wave',   'assets/wave.png',   { frameWidth: 2000, frameHeight: 1240 });
         this.load.spritesheet('player', 'assets/player.png', { frameWidth: 256, frameHeight: 256 });
         this.load.audio('bgm_game', './assets/bgm.mp3');
+
+        // === 2. ✨ 【新增】 — Loading 視覺系統 ===
+        const W = this.scale.width;
+        const H = this.scale.height;
+
+        // 🟢 建立粒子繪圖層 (在最底層漂浮)
+        const particleGfx = this.add.graphics().setDepth(1);
+        const particles = [];
+        
+        // 初始化 40 個電子科技微粒數據
+        for (let i = 0; i < 40; i++) {
+            particles.push({
+                x: Math.random() * W,
+                y: Math.random() * H + H * 0.5, // 隨機分佈在螢幕中下方
+                size: Math.random() * 4 + 2,    // 小方塊大小
+                speedY: -(Math.random() * 1.2 + 0.4), // 緩慢向上漂浮
+                alpha: Math.random() * 0.5 + 0.2,
+                color: Math.random() > 0.4 ? 0x5fffb8 : 0x6c5fff // 感謝祭招牌：藍綠色與紫外光色
+            });
+        }
+
+        // 🟣 建立進度條繪圖層 (在中間)
+        const progressGfx = this.add.graphics().setDepth(2);
+
+        // ⚪ 建立故障風 LOADING... 提示文字
+        const loadTxt = this.add.text(W / 2, H / 2 - 35, 'LOADING...', {
+            fontSize: '26px', 
+            fontFamily: 'Arial Black', 
+            fontWeight: '900', 
+            fill: '#ffffff',
+            letterSpacing: 4
+        }).setOrigin(0.5).setDepth(3);
+        
+        // 為文字加上發光的霓虹陰影
+        loadTxt.setShadow(0, 0, '#5fffb8', 12, true, true);
+
+        // 💥 文字的科技故障風 (Glitch) 定時隨機錯位動畫
+        const glitchTimer = this.time.addEvent({
+            delay: 350,
+            callback: () => {
+                if (Math.random() > 0.55) {
+                    // 隨機產生微小的 X 軸偏移，模擬電子雜訊抖動
+                    loadTxt.x = W / 2 + (Math.random() * 10 - 5);
+                    // 隨機短暫變色（在藍綠色與粉紫色之間抽換）
+                    loadTxt.setStyle({ fill: Math.random() > 0.5 ? '#5fffb8' : '#6c5fff' });
+                    
+                    // 70毫秒後立刻彈回正中央並還原顏色
+                    this.time.delayedCall(70, () => {
+                        loadTxt.x = W / 2;
+                        loadTxt.setStyle({ fill: '#ffffff' });
+                    });
+                }
+            },
+            loop: true
+        });
+
+        // 🔄 監聽 Phaser 的載入進度事件，即時重繪進度條
+        this.load.on('progress', (value) => {
+            progressGfx.clear();
+
+            // 1. 繪製極細的科技感背景軌道外框
+            progressGfx.lineStyle(1, 0x3d3470, 0.4);
+            progressGfx.strokeRect(W / 2 - 160, H / 2, 320, 6);
+
+            // 2. 繪製填滿的發光進度條本體
+            progressGfx.fillStyle(0x5fffb8, 0.9); // 使用亮眼藍綠色
+            progressGfx.fillRect(W / 2 - 160, H / 2 + 1, 320 * value, 4);
+        });
+
+        // 🏃 藉由 Preload 載入期間的 update 事件來驅動背景粒子緩慢往上飄
+        const updateListener = () => {
+            particleGfx.clear();
+            particles.forEach(p => {
+                p.y += p.speedY;
+                // 如果微粒飄出螢幕頂端，重置回螢幕最下方循環出生
+                if (p.y < -10) {
+                    p.y = H + 10;
+                    p.x = Math.random() * W;
+                }
+                
+                // 畫出科技風的小方塊
+                particleGfx.fillStyle(p.color, p.alpha);
+                particleGfx.fillRect(p.x, p.y, p.size, p.size);
+            });
+        };
+        this.events.on('update', updateListener);
+
+        // 🎬 檔案全部加載完畢後，優雅清場，釋放記憶體
+        this.load.on('complete', () => {
+            glitchTimer.remove(); // 停止定時器
+            this.events.off('update', updateListener); // 停止監聽更新
+            
+            // 讓所有 Loading 物件漸隱淡 out 後銷毀，體驗更柔和
+            this.tweens.add({
+                targets: [particleGfx, progressGfx, loadTxt],
+                alpha: 0,
+                duration: 400,
+                onComplete: () => {
+                    particleGfx.destroy();
+                    progressGfx.destroy();
+                    loadTxt.destroy();
+                }
+            });
+        });
     }
 
     create() {
@@ -390,7 +495,7 @@ class GameScene extends Phaser.Scene {
                 listView.style.display = 'none';
                 formView.style.display = 'block';
                 submitBtn.style.display = 'block';
-                document.getElementById('bug-view-btn').textContent = "📋 檢視公告/後台";
+                document.getElementById('bug-view-btn').textContent = "📋 檢視公告";
                 setStatus('');
                 return;
             }
@@ -494,7 +599,7 @@ class GameScene extends Phaser.Scene {
                             <div style="color:#e0e0ff; background:#111126; padding:8px; border-radius:4px; white-space:pre-line; line-height:1.4;">${b.adminDesc}</div>
                             <div style="margin-top:6px; padding:6px 8px; background:#192340; border-left:3px solid #4fa3ff; border-radius:2px; color:#9fd0ff;">
                                 <span style="font-weight:bold; font-size:11px; display:block; color:#4fa3ff;">官方回覆：</span>
-                                ${b.reply || '感謝回報，技術人員正全力排查中。'}
+                                ${b.reply || '感謝回報，我會努力修ㄉ。'}
                             </div>
                         `;
                     }
@@ -514,7 +619,7 @@ class GameScene extends Phaser.Scene {
             if (!desc) { setStatus('請填入問題或建議描述！', '#ff7eb3'); return; }
 
             document.getElementById('bug-submit-btn').disabled = true;
-            setStatus('正在加密傳送中...', '#ffe066');
+            setStatus('傳送中...', '#ffe066');
 
             try {
                 await fetch(API.BUG_URL, {
@@ -527,7 +632,7 @@ class GameScene extends Phaser.Scene {
                         ua: navigator.userAgent.substring(0, 80)
                     })
                 });
-                setStatus('✓ 提交成功！將進入人工審核，感謝回報 🐇');
+                setStatus('✓ 提交成功！感謝回報 🐇');
                 setTimeout(() => this._closeBugForm(), 1800);
             } catch (e) {
                 setStatus('⚠️ 傳送失敗', '#ff7eb3');
