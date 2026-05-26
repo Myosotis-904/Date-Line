@@ -715,12 +715,18 @@ class GameScene extends Phaser.Scene {
             if (!msg) { setStatus('請輸入留言內容！', '#ff7eb3'); return; }
             document.getElementById('gb-submit').disabled = true;
             setStatus('送出中…', '#ffe066');
+            // 💡 請找到你留言板送出按鈕的這段，改成用 result.ok 來判斷：
             const result = await GSheets.post(API.MSG_URL, {
                 type: 'message', name, mood, msg,
                 time: new Date().toLocaleString('zh-TW'),
             });
-            if (result.reason === 'no_url') {
-                setStatus('⚠️ API 未設定（開發模式）', '#ffe066');
+
+            if (!result.ok) {
+                if (result.reason === 'no_url') {
+                    setStatus('⚠️ API 未設定（開發模式）', '#ffe066');
+                } else {
+                    setStatus('❌ 錯誤: ' + result.reason, '#ff7eb3'); // 這裡如果噴錯，會在畫面上直接顯示原因！
+                }
             } else {
                 setStatus('✓ 留言成功！', '#5fffb8');
                 document.getElementById('gb-msg').value = '';
