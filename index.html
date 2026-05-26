@@ -17,26 +17,28 @@
         }
         
         html, body {
-            width: 100%;
-            /* ⚡ 橫螢幕大絕招：初始高度直接撐開，給予足夠的垂直溢出肉塊，強迫 iOS Safari 開放滾動權限 */
-            height: calc(100dvh + 120px);
+            width: 100%; 
+            /* ⚡ 關鍵修正一：給予足夠的滾動空間（80px），確保 iOS 判定為可滾動網頁，藉此驅逐工具列 */
+            height: calc(100dvh + 80px); 
             background: #000;
-            overflow-x: hidden;
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
             overflow-y: scroll;
             -webkit-overflow-scrolling: touch;
         }
         
-        /* 📱 ⚡ 橫螢幕置中定錨防偏容器 */
+        /* 📱 ⚡ 關鍵修正二：徹底解決全面屏 iPhone 橫向畫面右偏問題 */
+        /* 建立一個強制填滿動態視窗的絕對容器，並強制內部的 Phaser Canvas 永遠絕對居中 */
         #game-container {
-            position: absolute;
-            left: 0;
-            top: 0;
+            position: relative;
             width: 100vw;
-            /* 保持乾淨的 100dvh 動態高度，確保與 Phaser 畫布高度一致 */
-            height: 100dvh; 
+            height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        /* 強制 Phaser 自動生成的 Canvas 永遠相對於可視區絕對置中，完全無視 iOS 瀏海安全區域推擠 */
         #game-container canvas { 
             display: block !important; 
             position: absolute !important;
@@ -63,7 +65,7 @@
     <script src="./js/main.js"></script>
 
     <script>
-        // 1. 封鎖雙指張開縮放網頁 (Zoom 手勢)
+        // 1. 封鎖雙指張開縮放網頁
         document.addEventListener('gesturestart', function(e) {
             e.preventDefault();
         });
