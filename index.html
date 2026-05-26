@@ -5,13 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>換日線 DATELINE</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap\">\
     <style>
         * { 
             margin: 0; 
             padding: 0; 
             box-sizing: border-box; 
-            /* 📱 額外安全線：禁止 iOS 上長按文字跳出系統選擇框 */
             -webkit-user-select: none; 
             user-select: none;
             -webkit-touch-callout: none;
@@ -19,16 +18,15 @@
         
         html, body {
             width: 100%; 
-            /* 📱 關鍵優化：改用 100dvh (Dynamic Viewport Height) 
-               這樣不論 iOS Safari 的上下工具列是收起還是展開，網頁都會自動塞滿「剩餘的淨空範圍」 */
-            height: 100dvh; 
+            /* ⚡ 密技：初始高度多給 60 像素，讓 iOS Safari 判定網頁可以滾動，以便稍後點擊時驅逐工具列 */
+            height: calc(100dvh + 60px); 
             background: #000;
             display: flex; 
             align-items: center; 
             justify-content: center;
-            overflow: hidden;
-            /* 📱 關鍵優化：強制卡死網頁定位，徹底封鎖 iOS 網頁上下滑動時的橡皮筋彈跳特效 */
-            position: fixed; 
+            /* ⚡ 允許初始縱向滾動，解鎖 iOS 絲滑滾動機制 */
+            overflow-y: scroll;
+            -webkit-overflow-scrolling: touch;
         }
         
         #game-container canvas { 
@@ -37,7 +35,7 @@
     </style>
 </head>
 <body>
-    <div id="game-container"></div>
+    <div id=\"game-container\"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
 
@@ -48,22 +46,22 @@
     <script src="./js/scenes/GameScene.js"></script>
     <script src="./js/scenes/MusicScene.js"></script>
     <script src="./js/scenes/CalibrationScene.js"></script>
-     <script src="./js/scenes/TransitionScene.js"></script>
+    <script src="./js/scenes/TransitionScene.js"></script>
 
     <script src="./js/main.js"></script>
 
     <script>
-        // 1. 封鎖雙指張開縮放網頁 (Zoom 手勢)
+        // 1. 封鎖雙指張開縮放網頁
         document.addEventListener('gesturestart', function(e) {
             e.preventDefault();
         });
 
-        // 2. 封鎖 iOS 橫向手速過快、多指連打時，被誤判定為「雙擊放大網頁」
+        // 2. 封鎖 iOS 雙擊放大的預設瀏覽器行為
         let lastTouchEnd = 0;
         document.addEventListener('touchend', function(e) {
             let now = Date.now();
             if (now - lastTouchEnd <= 300) {
-                e.preventDefault(); // 阻斷雙擊放大的預設瀏覽器行為
+                e.preventDefault();
             }
             lastTouchEnd = now;
         }, false);
