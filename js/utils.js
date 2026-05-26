@@ -22,14 +22,21 @@ const GSheets = {
             return { ok: false, reason: 'no_url' };
         }
         try {
-            const body = new URLSearchParams(data).toString();
-            await fetch(url, {
+            // 🚀 改用 text/plain 發送純 JSON 字串，完美繞過所有 GitHub Pages 的 CORS 預檢限制
+            const response = await fetch(url, {
                 method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body,
+                mode: 'cors', // 🚀 必須用 cors 才能看得到試算表有沒有真的寫入成功！
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(data), // 🚀 後端用 JSON.parse 接收，格式絕對精準
             });
-            return { ok: true };
+            
+            const result = await response.json();
+            
+            if (result.status === 'ok' || result.status === 'success') {
+                return { ok: true };
+            } else {
+                return { ok: false, reason: result.msg || result.message || '後端寫入失敗' };
+            }
         } catch (e) {
             console.error('[GSheets] post failed', e);
             return { ok: false, reason: e.message };
@@ -42,10 +49,20 @@ const GSheets = {
             return [];
         }
         try {
-            const qs  = new URLSearchParams({ ...params, action: 'read' }).toString();
-            const res = await fetch(`${url}?${qs}`);
+            // 將所有參數轉成 query string 串在網址後面
+            const qs = new URLSearchParams(params).toString();
+            const res = await fetch(`${url}?${qs}`, {
+                method: 'GET',
+                mode: 'cors' // 🚀 確保讀取也是相容跨網域的
+            });
+            
             const json = await res.json();
-            return Array.isArray(json) ? json : (json.data ?? []);
+            
+            // 判斷回傳結構，如果是管理員後台的 { data: [...] } 就拆開，否則直接回傳陣列
+            if (json && json.data && Array.isArray(json.data)) {
+                return json.data;
+            }
+            return Array.isArray(json) ? json : [];
         } catch (e) {
             console.error('[GSheets] get failed', e);
             return [];
