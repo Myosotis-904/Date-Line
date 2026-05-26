@@ -4,9 +4,9 @@
    API 端點設定
 ================================================================ */
 const API = {
-    BUG_URL: 'https://script.google.com/macros/s/AKfycbyPFEJpAtVsDQEaPyii9EF_LpwPKeCGa_S6BajUjwOsVg_Fv1bEny7UxQon85BQE9YB2Q/exec',
-    MSG_URL: 'https://script.google.com/macros/s/AKfycbyPFEJpAtVsDQEaPyii9EF_LpwPKeCGa_S6BajUjwOsVg_Fv1bEny7UxQon85BQE9YB2Q/exec',
-    REPLY_URL: 'https://script.google.com/macros/s/AKfycbyPFEJpAtVsDQEaPyii9EF_LpwPKeCGa_S6BajUjwOsVg_Fv1bEny7UxQon85BQE9YB2Q/exec'
+    BUG_URL: 'https://script.google.com/macros/s/AKfycbyYMIP6gA7B4RGfCZmQccSfiIefJsDcsEg_HASgMdeiIsIf6ejC5A1h5fLOD3g7MLxvyA/exec',
+    MSG_URL: 'https://script.google.com/macros/s/AKfycbyYMIP6gA7B4RGfCZmQccSfiIefJsDcsEg_HASgMdeiIsIf6ejC5A1h5fLOD3g7MLxvyA/exec',
+    REPLY_URL: 'https://script.google.com/macros/s/AKfycbyYMIP6gA7B4RGfCZmQccSfiIefJsDcsEg_HASgMdeiIsIf6ejC5A1h5fLOD3g7MLxvyA/exec'
 };
 
 /* ================================================================
@@ -85,7 +85,7 @@ const LANDMARKS = [
         colW: 40, colH: 55,
         nearDist: 160, interactDist: 200,
         dialog: {
-            title: '神奇海螺(留言板)［系統維護中］',
+            title: '神奇海螺(留言板)',
             lines: ['為什麼不告訴神奇海螺呢?', ' ', '(神奇海螺會把秘密告訴所有人。)'],
             action: 'guestbook',
             actionLabel: '💬 開啟留言板',
