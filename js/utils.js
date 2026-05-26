@@ -1,5 +1,50 @@
 /* ================================================================
-   GSheets — Google Sheets API 完美整合版（全面相容 type 參數分流）
+   PlayerState — 全局遊戲狀態管理器（修正 GameScene.js 崩潰之核心）
+================================================================ */
+const PlayerState = {
+    // 基礎玩家資料與設定
+    name: '匿名',
+    mood: '😊',
+    timingOffset: 0, // 音訊校準延遲數據 (ms)
+
+    // 當前節奏遊戲選曲狀態
+    currentSong: null,
+    currentDifficulty: 'Normal',
+
+    // 歷史最高紀錄暫存 (可供場景讀取渲染)
+    lastScore: 0,
+    lastCombo: 0,
+    lastAccuracy: 0,
+    lastGrade: 'F',
+
+    // 初始化或重置狀態的方法 (防止 GameScene 呼叫時噴錯)
+    reset() {
+        this.lastScore = 0;
+        this.lastCombo = 0;
+        this.lastAccuracy = 0;
+        this.lastGrade = 'F';
+        console.log('[PlayerState] 遊戲狀態已成功重置');
+    },
+
+    // 自訂讀取/寫入校準值防呆
+    loadOffset() {
+        try {
+            const saved = localStorage.getItem('timingOffset');
+            if (saved !== null) {
+                this.timingOffset = parseInt(saved, 10) || 0;
+            }
+        } catch(e) {
+            this.timingOffset = 0;
+        }
+    }
+};
+
+// 立即執行一次校準值讀取
+PlayerState.loadOffset();
+
+
+/* ================================================================
+   GSheets — Google Sheets API 完美整合版（表單盲送跨域無敵版）
 ================================================================ */
 const GSheets = {
     // ⚡ 寫入/更新數據 (相容 bug, message, update_bug)
@@ -60,10 +105,8 @@ const GSheets = {
             const res = await fetch(`${url}?${qs}`);
             const json = await res.json();
             
-            // 由於你的 bugs 讀取回傳的是 { role: '...', data: [...] }，而 messages 回傳的是 [...] 
-            // 這裡做一層相容性解析，確保 Phaser 呼叫時不會報錯
             if (json && json.data) {
-                return json.data; // 如果是 bug 回報包，提取裡面的 data 陣列
+                return json.data; 
             }
             return Array.isArray(json) ? json : [];
         } catch (e) {
