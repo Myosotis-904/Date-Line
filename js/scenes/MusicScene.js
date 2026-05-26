@@ -1,7 +1,7 @@
 'use strict';
 
 /* ================================================================
-    MusicScene — 音樂節奏遊戲場景（全功能優化流暢版）
+    MusicScene — 音樂節奏遊戲場景（全功能優化流暢 + 延遲校準完美連動版）
 ================================================================ */
 class MusicScene extends Phaser.Scene {
     constructor() { super('MusicScene'); }
@@ -18,7 +18,9 @@ class MusicScene extends Phaser.Scene {
     create() {
         // iOS Safari 安全解鎖音訊
         if (this.sound.context && this.sound.context.state === 'suspended') {
-            this.sound.context.resume().catch(() => {});
+            document.addEventListener('click', () => {
+                this.sound.context.resume().catch(() => {});
+            }, { once: true });
         }
 
         const W = this.cameras.main.width, H = this.cameras.main.height;
@@ -88,7 +90,7 @@ class MusicScene extends Phaser.Scene {
         this.statusTxt = this.add.text(W/2, H/2, '載入譜面中…', {fontSize:'20px', fill:'#a5e8ff', fontFamily:'monospace'}).setOrigin(0.5);
 
         // ⏸️ 2. 將離開功能改為「暫停按鈕」
-        this.pauseBtn = this.add.text(20, 16, ' ‖  暫停', {
+        this.pauseBtn = this.add.text(20, 16, ' ‖   暫停', {
             fontSize:'14px', fill:'#d4caff', fontFamily:'monospace',
             backgroundColor:'#1a1a33', padding:{x:12, y:6},
         }).setScrollFactor(0).setInteractive().setVisible(false)
@@ -145,11 +147,17 @@ class MusicScene extends Phaser.Scene {
             if (this.judgeTxt) this.judgeTxt.setPosition(nW/2, this.hitY - 50);
         });
 
+        // 讀取本地快取
+        if (typeof SafeStorage !== 'undefined') {
+            this.timingOffset = parseInt(SafeStorage.getItem('timingOffset')) || 0;
+        } else {
+            this.timingOffset = parseInt(localStorage.getItem('timingOffset')) || 0;
+        }
+
         this.prepareBGM = this.sound.add('prepare_bgm', { loop: true, volume: 0.4 });
         this.prepareBGM.play();
 
         this.speedMultiplier = 1.0;
-        this.timingOffset = parseInt(SafeStorage.getItem('timingOffset')) || 0;
         this._initAsync();
         this._createPrepareUI();
 
@@ -186,7 +194,7 @@ class MusicScene extends Phaser.Scene {
         const calibCX = (calibX1 + calibX2) / 2;
         const calibCY = (calibY1 + calibY2) / 2;
 
-        const savedOfs = parseInt(SafeStorage.getItem('timingOffset')) || 0;
+        const savedOfs = this.timingOffset;
         this.calibOfsText = this.add.text(
             calibX2 - 40, calibY1 + 40,
             `${savedOfs > 0 ? '+' : ''}${savedOfs} ms`,
@@ -266,9 +274,16 @@ class MusicScene extends Phaser.Scene {
         if (this.gameReady) return;
         if (!this.noteQueue.length) return;
 
+        // 🚀 出發前動態讀取最新延遲
+        if (typeof SafeStorage !== 'undefined') {
+            this.timingOffset = parseInt(SafeStorage.getItem('timingOffset')) || 0;
+        } else {
+            this.timingOffset = parseInt(localStorage.getItem('timingOffset')) || 0;
+        }
+
         this.prepareUI?.destroy();
         this.input.off('drag');
-        this.pauseBtn.setVisible(true); // 顯示暫停按鈕
+        this.pauseBtn.setVisible(true);
 
         const ctx = this.sound.context;
         const doPlay = () => {
@@ -338,14 +353,19 @@ class MusicScene extends Phaser.Scene {
     update() {
         if (this.isPreparing || !this.gameReady || this.isPaused) return;
 
-        const elapsed = (this.sound.context.currentTime - this.musicStartAudioTime) * 1000 + this.timingOffset;
+        // 🎵 物理音樂真正的流逝時間（毫秒）
+        const baseMusicTime = (this.sound.context.currentTime - this.musicStartAudioTime) * 1000;
         
-        this._spawnNotes(elapsed);
-        this._updateNotes(elapsed);
-        this._drawHoldBodies(elapsed);
-        this._drawSyncLines(); // 🔗 5. 渲染同時按下的輔助線
+        // 🚀 判定與視覺核心時間軸：扣除延遲。生成、打擊、過期、繪圖全部統一用它！
+        const elapsed = baseMusicTime - this.timingOffset;
+
+        this._spawnNotes(elapsed);               
+        this._updateNotes(elapsed); 
+        this._drawHoldBodies(elapsed); // 👈 長條繪製改用統一的 elapsed 驅動
+        this._drawSyncLines();                   
         this._drawKeys();
 
+        // 檢查譜面是否播放完畢
         const holdsDone = Object.keys(this.holdingNotes).length === 0;
         if (this.noteQueue.length === 0 && this.activeNotes.length === 0 && holdsDone) {
             this.gameReady = false; this._showResult();
@@ -364,6 +384,8 @@ class MusicScene extends Phaser.Scene {
     _spawnNote(data, elapsed) {
         const x = this.laneWidth * data.lane + this.laneWidth / 2;
         const nw = this.laneWidth * MUSIC_CFG.NOTE_W;
+        
+        // 初始高度先按時間軸分配（隨後會立刻在下個 Update 的 _updateNotes 刷新位置）
         const y = this.hitY - (data.time - elapsed) * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
         
         const note = this.add.rectangle(x, y, nw, MUSIC_CFG.NOTE_H, MUSIC_CFG.COLORS[data.lane]);
@@ -380,84 +402,141 @@ class MusicScene extends Phaser.Scene {
 
     _updateNotes(elapsed) {
         const H = this.cameras.main.height;
+        const targetLineY = this.hitY;
+
         for (const note of this.activeNotes) {
             if (!note.active) continue;
-            note.y = this.hitY - (note._noteTime - elapsed) * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
             
+            // 🚀【位置公式重合修正】完全使用判定時間軸 (elapsed) 驅動！
+            // 確保當完美時間點到時 (elapsed === note._noteTime)，Y 軸百分之百重合在判定線 targetLineY 上。
+            note.y = targetLineY - (note._noteTime - elapsed) * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
+            
+            // --- 長條音符按住中的狀態處理 ---
             if (note._state === 'holding') {
-                note.y = this.hitY;
+                note.y = targetLineY;
                 if (elapsed >= note._noteEndTime) this._completeHold(note);
                 continue;
             }
-            if (note._state === 'alive' && note._noteTime < elapsed - MUSIC_CFG.WIN_GD) {
-                if (!note._isHold) { note._state = 'miss'; this._onMiss(); note.destroy(); }
-                continue;
+
+            // 2. 過期判定：當判定時間超過「音符時間 + Good 判定寬度」才算 Miss
+            if (note._state === 'alive' && elapsed > note._noteTime + MUSIC_CFG.WIN_GD) {
+                note._state = 'missed'; 
+                this._onMiss(); 
+                
+                if (!note._isHold) {
+                    note.setAlpha(0.35); 
+                }
+                continue; 
             }
-            if (!note._isHold && note.y > H + 150) { note.destroy(); continue; }
-            if (note._isHold) {
-                const tailY = this.hitY - (note._noteEndTime - elapsed) * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
-                if (tailY > H + 150) note.destroy();
+
+            // 3. 長條音符漏掉或中途斷開的過期判定
+            if (note._isHold && note._state !== 'holding' && note._state !== 'missed') {
+                if (elapsed > note._noteEndTime + MUSIC_CFG.WIN_GD) {
+                    note._state = 'missed';
+                    this._onMiss();
+                    continue;
+                }
+            }
+
+            // 4. 邊界銷毀守門員：只有當音符真正滾出螢幕底部才銷毀
+            if (!note._isHold) {
+                if (note.y > H + 50) { 
+                    note.destroy(); 
+                    continue; 
+                }
+            } else {
+                // 長條音符的尾巴也改用相同時間基準驅動
+                const tailY = targetLineY - (note._noteEndTime - elapsed) * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
+                if (tailY > H + 50) { 
+                    note.destroy(); 
+                    continue; 
+                }
             }
         }
+        // 過濾掉已經被 destroy 的音符
         this.activeNotes = this.activeNotes.filter(n => n.active);
     }
 
-    // 🔗 5. 繪製多個音符「同時間壓下」的輔助連接線
-    _drawSyncLines() {
-        const g = this.syncLineGfx; g.clear();
-        
-        // 分組找出同一個時間點（誤差微乎其微）的 Alive 音符
-        const timeGroups = {};
-        for (const note of this.activeNotes) {
-            if (note.active && note._state === 'alive') {
-                const t = note._noteTime;
-                if (!timeGroups[t]) timeGroups[t] = [];
-                timeGroups[t].push(note);
-            }
-        }
-
-        // 遍歷所有分組，若有 2 個以上的音符同時間出現，就在兩者間連線
-        Object.values(timeGroups).forEach(notes => {
-            if (notes.length < 2) return;
-            // 排序 X 座標確保由左至右畫線
-            notes.sort((a, b) => a.x - b.x);
-            
-            g.lineStyle(3, 0xffffff, 0.45); // 金屬霓虹白底線
-            for (let i = 0; i < notes.length - 1; i++) {
-                g.lineBetween(notes[i].x, notes[i].y, notes[i+1].x, notes[i+1].y);
-            }
-        });
-    }
-
     _drawHoldBodies(elapsed) {
-        const g = this.holdGfx; g.clear();
+        this.holdGfx.clear();
+        const H = this.cameras.main.height;
+        const targetLineY = this.hitY;
+
         for (const note of this.activeNotes) {
             if (!note.active || !note._isHold) continue;
-            if (note._state === 'miss' || note._state === 'hit') continue;
+            if (note._state === 'missed') continue;
+
+            const lane = note._lane;
+            const startX = this.lanePositions ? (this.lanePositions[lane] - this.noteW / 2) : (lane * this.laneWidth + (this.laneWidth * (1 - MUSIC_CFG.NOTE_W)) / 2);
+
+            // 🚀 改用 elapsed 驅動長條頭尾的 Y 座標
+            let currY = targetLineY - (note._noteTime - elapsed) * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
+            let tailY = targetLineY - (note._noteEndTime - elapsed) * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
+
+            if (note._state === 'holding') {
+                currY = targetLineY;
+            }
+
+            if (tailY > H && currY > H) continue;
+            if (currY < 0 && tailY < 0) continue;
+
+            const rectH = currY - tailY;
+            if (rectH <= 0) continue;
+
+            let fillColor = 0x6c5fff;
+            let alpha = 0.35;
+            if (note._state === 'holding') {
+                fillColor = 0x5fffb8;
+                alpha = 0.55;
+            }
+
+            this.holdGfx.fillStyle(fillColor, alpha);
+            this.holdGfx.fillRect(startX, tailY, this.laneWidth * MUSIC_CFG.NOTE_W, rectH);
+
+            this.holdGfx.lineStyle(2, fillColor, alpha * 1.5);
+            this.holdGfx.strokeRect(startX, tailY, this.laneWidth * MUSIC_CFG.NOTE_W, rectH);
+        }
+    }
+
+    _drawSyncLines() {
+        this.syncLineGfx.clear();
+        if (this.activeNotes.length < 2) return;
+
+        // 找出畫面上所有處於 alive 狀態且時間相同的音符組
+        const groups = {};
+        for (const note of this.activeNotes) {
+            if (!note.active || note._state !== 'alive') continue;
+            const t = note._noteTime;
+            if (!groups[t]) groups[t] = [];
+            groups[t].push(note);
+        }
+
+        this.syncLineGfx.lineStyle(2, 0xffffff, 0.4);
+        for (const t in groups) {
+            const notes = groups[t];
+            if (notes.length < 2) continue;
             
-            const lane = note._lane, col = MUSIC_CFG.COLORS[lane];
-            const bw = this.laneWidth * MUSIC_CFG.NOTE_W, bx = lane * this.laneWidth + (this.laneWidth - bw) / 2;
-            const isHolding = note._state === 'holding', headY = note.y;
-            const tailY = this.hitY - (note._noteEndTime - elapsed) * MUSIC_CFG.NOTE_SPEED * this.speedMultiplier / 1000;
-            const H = this.cameras.main.height;
-            
-            const drawTop = Math.max(-20, tailY), drawBottom = Math.min(H+20, headY), drawHeight = drawBottom - drawTop;
-            if (drawHeight <= 0) continue;
-            
-            g.fillStyle(col, isHolding ? 0.65 : 0.35); g.fillRect(bx, drawTop, bw, drawHeight);
-            g.lineStyle(1.5, col, isHolding ? 1.0 : 0.55); g.strokeRect(bx, drawTop, bw, drawHeight);
-            
-            if (isHolding) { g.fillStyle(0xffffff, 0.18); g.fillRect(bx + bw*0.25, drawTop, bw*0.5, drawHeight); }
-            if (tailY > -10) { g.fillStyle(isHolding ? 0xffffff : col, isHolding ? 0.9 : 0.85); g.fillRect(bx, tailY-4, bw, 8); }
+            // 由左至右排序
+            notes.sort((a, b) => a.x - b.x);
+            this.syncLineGfx.beginPath();
+            this.syncLineGfx.moveTo(notes[0].x, notes[0].y);
+            for (let i = 1; i < notes.length; i++) {
+                this.syncLineGfx.lineTo(notes[i].x, notes[i].y);
+            }
+            this.syncLineGfx.strokePath();
         }
     }
 
     _tryHit(lane, pointerId) {
         if (!this.gameReady || this.holdingNotes[lane]) return;
-        const elapsed = (this.sound.context.currentTime - this.musicStartAudioTime) * 1000 + this.timingOffset;
+        
+        // 🚀 點擊判定必須統一「減去」全域延遲
+        const baseMusicTime = (this.sound.context.currentTime - this.musicStartAudioTime) * 1000;
+        const elapsed = baseMusicTime - this.timingOffset;
         
         let best = null, bestDiff = Infinity;
         for (const n of this.activeNotes) {
+            // 安全鎖：只有 alive 的音符能被按到
             if (!n.active || n._state !== 'alive' || n._lane !== lane) continue;
             const diff = Math.abs(n._noteTime - elapsed);
             if (diff < bestDiff) { bestDiff = diff; best = n; }
@@ -466,11 +545,11 @@ class MusicScene extends Phaser.Scene {
         if (!best) return;
         
         if (bestDiff <= MUSIC_CFG.WIN_PF) {
-            this.hitSound?.play(); // 🔊 6. 音效打擊回饋
+            this.hitSound?.play();
             if (best._isHold) { best._state = 'holding'; best._hitQuality = 'perfect'; this.holdingNotes[lane] = best; this._showJudge('HOLD ✦', '#c4b8ff'); }
             else { best._state = 'hit'; best.destroy(); this._onHit(300, 'PERFECT ✦', '#fffb80'); }
         } else if (bestDiff <= MUSIC_CFG.WIN_GD) {
-            this.hitSound?.play(); // 🔊 6. 音效打擊回饋
+            this.hitSound?.play();
             if (best._isHold) { best._state = 'holding'; best._hitQuality = 'good'; this.holdingNotes[lane] = best; this._showJudge('HOLD', '#5fb8ff'); }
             else { best._state = 'hit'; best.destroy(); this._onHit(100, 'GOOD', '#5fb8ff'); }
         }
@@ -481,7 +560,7 @@ class MusicScene extends Phaser.Scene {
         const label = note._hitQuality === 'perfect' ? 'PERFECT ✦' : 'GOOD';
         const color = note._hitQuality === 'perfect' ? '#fffb80' : '#5fb8ff';
         
-        this.hitSound?.play(); // 🔊 6. 音效打擊回饋
+        this.hitSound?.play();
         note._state = 'hit'; note.destroy(); 
         delete this.holdingNotes[lane]; 
         this._onHit(pts, label, color);
@@ -506,11 +585,9 @@ class MusicScene extends Phaser.Scene {
             this.comboNumTxt.setText(this.combo).setAlpha(1);
             this.comboLabelTxt.setAlpha(0.7);
             
-            // 霓虹特效色切換
-            if (this.combo >= 50) this.comboNumTxt.setStyle({ fill: '#fffb80' }); // 高 Combo 變金色發光
+            if (this.combo >= 50) this.comboNumTxt.setStyle({ fill: '#fffb80' });
             else this.comboNumTxt.setStyle({ fill: '#ffffff' });
 
-            // ⚡ 每次打擊彈性內縮回彈特效 (Pop Animation)
             this.tweens.killTweensOf(this.comboNumTxt);
             this.comboNumTxt.setScale(1.2);
             this.tweens.add({
@@ -525,7 +602,6 @@ class MusicScene extends Phaser.Scene {
         this.combo = 0; 
         this.missCnt++; 
         
-        // 🪐 4. Miss 時淡出正中央的 Combo 顯示
         this.comboNumTxt.setAlpha(0);
         this.comboLabelTxt.setAlpha(0);
         
@@ -536,7 +612,6 @@ class MusicScene extends Phaser.Scene {
         const W = this.cameras.main.width;
         this.judgeTxt.setText(text).setStyle({fill: color}).setAlpha(1).setPosition(W/2, this.hitY - 50);
         
-        // 判定文字跳動擴張特效
         this.tweens.killTweensOf(this.judgeTxt);
         this.judgeTxt.setScale(0.8);
         this.tweens.add({ targets: this.judgeTxt, scaleX: 1.1, scaleY: 1.1, duration: 80, yoyo: true, repeat: 0 });
@@ -568,13 +643,11 @@ class MusicScene extends Phaser.Scene {
         }
     }
 
-    // 🧱 1. 全方位判定擴大（不再卡死 Y 軸點擊限制，全螢幕高度皆可防滑防斷觸）
     _getLane(screenX, screenY) {
         const lane = Math.floor(screenX / this.laneWidth);
         return (lane < 0 || lane >= this.laneCount) ? -1 : lane;
     }
 
-    // 🧼 3. 核心安全資源垃圾回收（完美解決離開遊戲後網頁卡死的問題）
     _cleanUpScene() {
         this.gameReady = false;
         this.tweens?.killAll();
