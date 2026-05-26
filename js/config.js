@@ -4,9 +4,9 @@
    API 端點設定
 ================================================================ */
 const API = {
-    BUG_URL: 'https://script.google.com/macros/s/AKfycbySXkAk33ezLvIR4YsQcHQgVKKeJ9qN82EIr9J9AcgXBSlC5gDsOnkjZPrMRotOvw0VEw/exec',
-    MSG_URL: 'https://script.google.com/macros/s/AKfycbySXkAk33ezLvIR4YsQcHQgVKKeJ9qN82EIr9J9AcgXBSlC5gDsOnkjZPrMRotOvw0VEw/exec',
-    REPLY_URL: 'https://script.google.com/macros/s/AKfycbySXkAk33ezLvIR4YsQcHQgVKKeJ9qN82EIr9J9AcgXBSlC5gDsOnkjZPrMRotOvw0VEw/exec'
+    BUG_URL: 'https://script.google.com/macros/s/AKfycbxf4ET1jExaE4JrzJF-_HK7Tv6-7_ZQKVTFlOPv1NVZAm0DwSz42_nUtc5C9cShTtZaUQ/exec',
+    MSG_URL: 'https://script.google.com/macros/s/AKfycbxf4ET1jExaE4JrzJF-_HK7Tv6-7_ZQKVTFlOPv1NVZAm0DwSz42_nUtc5C9cShTtZaUQ/exec',
+    REPLY_URL: 'https://script.google.com/macros/s/AKfycbxf4ET1jExaE4JrzJF-_HK7Tv6-7_ZQKVTFlOPv1NVZAm0DwSz42_nUtc5C9cShTtZaUQ/exec'
 };
 
 /* ================================================================
