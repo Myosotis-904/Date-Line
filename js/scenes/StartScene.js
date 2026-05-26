@@ -1,7 +1,7 @@
 'use strict';
 
 /* ================================================================
-   StartScene — 標題畫面（整合：iOS 滾動驅逐工具列、音訊硬體激醒、精美公告彈窗）
+   StartScene — 標題畫面（整合：iOS 橫螢幕滾動驅逐工具列、音訊硬體激醒、精美公告彈窗）
 ================================================================ */
 class StartScene extends Phaser.Scene {
     constructor() { super('StartScene'); }
@@ -68,7 +68,7 @@ class StartScene extends Phaser.Scene {
     }
 
     // ================================================================
-    // ✨ 精美公告系統 — 整合「自動滾動隱藏工具列」機制
+    // ✨ 精美公告系統 — 整合「橫螢幕自動滾動隱藏工具列」機制
     // ================================================================
     _showNoticeModal(W, H) {
         // 建立元件容器，方便最後一鍵淡出
@@ -97,7 +97,7 @@ class StartScene extends Phaser.Scene {
         titleTxt.setShadow(0, 0, '#5fffb8', 8, true, true);
         modalContainer.add(titleTxt);
 
-        // ── 📝 遊戲資訊內文 ──
+               // ── 📝 遊戲資訊內文 ──
 
         const newsLines = [
                     '【 換日線 DATELINE - 專案公告 】',
@@ -152,9 +152,10 @@ class StartScene extends Phaser.Scene {
             })
             .on('pointerdown', () => {
                 
-                // 📱 ⚡ 【自動滾動驅逐工具列】
-                // 點擊瞬間向下捲動 60px，此時網頁尚未鎖死，Safari 就會順利觸發隱藏工具列的原生行為！
-                window.scrollTo(0, 60);
+                // 📱 ⚡ 【針對橫向遊玩：發動強迫滾動驅逐工具列】
+                // 點擊瞬間往下大力滾動 100 像素。由於 index.html 預留了足夠的高度，
+                // Safari 橫向狀態下會完美觸發原生收合，將上下網址列、工具列完美隱藏或縮到最細！
+                window.scrollTo(0, 100);
 
                 // 點擊後將整組公告淡出，並流暢切換至下一個 Scene
                 this.tweens.add({
@@ -163,15 +164,15 @@ class StartScene extends Phaser.Scene {
                     duration: 300,
                     onComplete: () => {
                         
-                        // 📱 ⚡ 【網頁安全定位卡死鎖定】
-                        // 工具列退場後，立刻消除網頁多給的 80px 空間，並用 fixed 鎖死定位，防止遊戲中畫面彈跳
+                        // 📱 ⚡ 【網頁安全鎖定與同步刷新】
+                        // 工具列退場後，立刻用 fixed 把網頁釘在 100dvh，消滅剛才多給的溢出肉塊，防止遊戲中回彈
                         try {
                             document.documentElement.style.height = '100dvh';
                             document.body.style.height = '100dvh';
                             document.body.style.overflow = 'hidden';
                             document.body.style.position = 'fixed';
                             
-                            // 🚀 核心重新整理：通知 Phaser 引擎工具列縮小了，立刻刷新尺寸完美填滿
+                            // 同步通知 Phaser 引擎尺寸變更，讓畫布完美配合最新淨空尺寸
                             if (this.scale) {
                                 this.scale.refresh();
                             }
