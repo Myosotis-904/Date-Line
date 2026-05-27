@@ -1,7 +1,7 @@
 'use strict';
 
 /* ================================================================
-   StartScene — 標題畫面（整合：iOS 橫螢幕滾動驅逐工具列、音訊硬體激醒、精美公告彈窗）
+   StartScene — 標題畫面（完美安全防禦版：保留原始公告、修復卡角落與縮水問題）
 ================================================================ */
 class StartScene extends Phaser.Scene {
     constructor() { super('StartScene'); }
@@ -45,7 +45,7 @@ class StartScene extends Phaser.Scene {
             } catch (e) {}
 
             // 🎵 【低延遲 Web Audio 核心硬體激醒】
-            if (this.sound.context) {
+            if (this.sound && this.sound.context) {
                 this.sound.context.resume().then(() => {
                     let buffer = this.sound.context.createBuffer(1, 1, 22050);
                     let source = this.sound.context.createBufferSource();
@@ -56,7 +56,7 @@ class StartScene extends Phaser.Scene {
             }
 
             // 隱藏閃爍的提示文字
-            hint.destroy();
+            if (hint && hint.active) hint.destroy();
 
             // 🎬 呼叫並彈出公告視窗
             this._showNoticeModal(W, H);
@@ -68,7 +68,7 @@ class StartScene extends Phaser.Scene {
     }
 
     // ================================================================
-    // ✨ 精美公告系統 — 整合「橫螢幕自動滾動隱藏工具列」機制
+    // ✨ 精美公告系統 — 整合「自動滾動隱藏工具列」機制
     // ================================================================
     _showNoticeModal(W, H) {
         // 建立元件容器，方便最後一鍵淡出
@@ -97,17 +97,15 @@ class StartScene extends Phaser.Scene {
         titleTxt.setShadow(0, 0, '#5fffb8', 8, true, true);
         modalContainer.add(titleTxt);
 
-               // ── 📝 遊戲資訊內文 ──
-
+        // ── 📝 遊戲資訊內文（完整保留你的原汁原味文字內容） ──
         const newsLines = [
-                    '【 換日線 DATELINE - 專案公告 】',
-                    '',
-                    '✨ 歡迎來到雄女第 78 屆畢業典禮特設互動網站！',
-                    '📢 [重要提示] 建議保持在橫螢幕狀態下遊玩。',
-                    ' ',
-                    '[更新公告]  重新處理了音遊相關的問題與畫面優化。',
-
-                    '                  新增了場景切換動畫，卡頓問題處理中。'
+            '【 換日線 DATELINE - 專案公告 】',
+            '',
+            '✨ 歡迎來到雄女第 78 屆畢業典禮特設互動網站！',
+            '📢 [重要提示] 建議保持在橫螢幕狀態下遊玩。',
+            ' ',
+            '[更新公告]  重新處理了音遊相關的問題與畫面優化。',
+            '                新增了場景切換動畫，卡頓問題處理中。'
         ];
 
         // 依序渲染公告文字行
@@ -152,10 +150,10 @@ class StartScene extends Phaser.Scene {
             })
             .on('pointerdown', () => {
                 
-                // 📱 ⚡ 【針對橫向遊玩：發動強迫滾動驅逐工具列】
-                // 點擊瞬間往下大力滾動 100 像素。由於 index.html 預留了足夠的高度，
-                // Safari 橫向狀態下會完美觸發原生收合，將上下網址列、工具列完美隱藏或縮到最細！
-                window.scrollTo(0, 100);
+                // 📱 ⚡ 【自動滾動驅逐工具列】
+                try {
+                    window.scrollTo(0, 60);
+                } catch(e) {}
 
                 // 點擊後將整組公告淡出，並流暢切換至下一個 Scene
                 this.tweens.add({
@@ -164,19 +162,28 @@ class StartScene extends Phaser.Scene {
                     duration: 300,
                     onComplete: () => {
                         
-                        // 📱 ⚡ 【網頁安全鎖定與同步刷新】
-                        // 工具列退場後，立刻用 fixed 把網頁釘在 100dvh，消滅剛才多給的溢出肉塊，防止遊戲中回彈
+                        // 📱 ⚡ 【網頁安全定位卡死鎖定】防禦重構
                         try {
-                            document.documentElement.style.height = '100dvh';
-                            document.body.style.height = '100dvh';
-                            document.body.style.overflow = 'hidden';
-                            document.body.style.position = 'fixed';
-                            
-                            // 同步通知 Phaser 引擎尺寸變更，讓畫布完美配合最新淨空尺寸
+                            if (document && document.documentElement) {
+                                document.documentElement.style.height = '100dvh';
+                            }
+                            if (document && document.body && document.body.style) {
+                                document.body.style.height = '100dvh';
+                                document.body.style.overflow = 'hidden';
+                                document.body.style.position = 'fixed';
+                            }
+                        } catch (err) {
+                            console.warn('[StartScene] DOM鎖定被跳過:', err);
+                        }
+
+                        // ⚡ 核心修復：延遲 50 毫秒給瀏覽器緩衝時間，隨後強迫 Phaser 刷新畫布尺寸！
+                        // 這能徹底解決「因為 fixed 定位導致地圖和玩家縮小縮在左上角」的嚴重 Bug！
+                        this.time.delayedCall(50, () => {
                             if (this.scale) {
+                                this.scale.resize(this.scale.width, this.scale.height);
                                 this.scale.refresh();
                             }
-                        } catch (e) {}
+                        });
 
                         // 優雅淡出畫布並切換場景
                         this.cameras.main.fadeOut(500, 0, 0, 0);
