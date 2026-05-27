@@ -18,18 +18,26 @@ const config = {
     parent: 'game-container',
     width: 960,
     height: 540,
-    backgroundColor: '#0c0c22', // 🚀 預設底色也同步調整為深海藍
+    backgroundColor: '#0c0c22', 
+
+    // 🚀 【補上：核心網頁渲染優化】徹底解決走路卡頓、圖片邊緣毛邊
+    render: {
+        antialias: true,             // 開啟抗鋸齒
+        roundPixels: true,           // 🚀 強制座標對齊整數像素，封鎖畫面微幅抖動
+        powerPreference: 'high-performance' // 強制瀏覽器調用高效能 GPU
+    },
+
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
     },
     audio: { disableWebAudio: false },
     scene: [
-        StartScene,
+        StartScene,       // 👈 預設遊戲第一個主畫面（若要一開網頁就讀條，請跟 TransitionScene 互換位置）
         GameScene,
         MusicScene,
         CalibrationScene,
-        TransitionScene // 🚀 註冊全新轉場加載場景
+        TransitionScene   
     ],
 };
 
