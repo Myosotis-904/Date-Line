@@ -15,15 +15,13 @@ class StartScene extends Phaser.Scene {
 
         this.add.image(W/2 - 5, H/2, 'start_bg').setDisplaySize(W, H);
 
-        // 修正：移除不支援的 letterSpacing
         this.add.text(W / 2, H * 0.578, 'D A T E L I N E', {
-            fontSize: '13px', fill: '#3d3470', fontFamily: 'monospace'
+            fontSize: '13px', fill: '#3d3470', fontFamily: 'monospace', letterSpacing: 7,
         }).setOrigin(0.5);
 
-        // 修正：移除不支援的 letterSpacing
-        const hint = this.add.text(W / 2, H * 0.75, '觸 碰 或 按 任 意 鍵 開 始', {
+        const hint = this.add.text(W / 2, H * 0.75, '觸碰或按任意鍵開始', {
             fontSize: '20px', fill: '#a5e8ff',
-            fontFamily: "'Noto Sans TC', monospace"
+            fontFamily: "'Noto Sans TC', monospace", letterSpacing: 3,
         }).setOrigin(0.5);
 
         this.tweens.add({
@@ -66,13 +64,11 @@ class StartScene extends Phaser.Scene {
 
         // 同時監聽觸控/滑鼠點擊，以及鍵盤任意鍵按下
         this.input.once('pointerdown', handleStartTrigger);
-        if (this.input.keyboard) {
-            this.input.keyboard.once('keydown', handleStartTrigger);
-        }
+        this.input.keyboard.once('keydown', handleStartTrigger);
     }
 
     // ================================================================
-    // ✨ 精美公告系統 — 整合「自動滾動隱藏工具列」機制
+    // ✨ 精美公告系統 — 整合「自動滾動隱藏工具列」機制與 Transition 串接
     // ================================================================
     _showNoticeModal(W, H) {
         // 建立元件容器，方便最後一鍵淡出
@@ -94,9 +90,9 @@ class StartScene extends Phaser.Scene {
         const deco2 = this.add.rectangle(W/2 - dialogW/2 + 2, H/2 - dialogH/2 + 10, 3, 40, 0x5fffb8);
         modalContainer.add([deco1, deco2]);
 
-        // 公告標題：INFORMATION (修正：移除不支援的 letterSpacing，直接用字串空格代替)
-        const titleTxt = this.add.text(W/2, H/2 - dialogH/2 + 30, 'I N F O R M A T I O N', {
-            fontSize: '22px', fontFamily: 'Arial Black', fontWeight: '900', fill: '#5fffb8'
+        // 公告標題：INFORMATION
+        const titleTxt = this.add.text(W/2, H/2 - dialogH/2 + 30, 'INFORMATION', {
+            fontSize: '22px', fontFamily: 'Arial Black', fontWeight: '900', fill: '#5fffb8', letterSpacing: 2
         }).setOrigin(0.5);
         titleTxt.setShadow(0, 0, '#5fffb8', 8, true, true);
         modalContainer.add(titleTxt);
@@ -107,7 +103,7 @@ class StartScene extends Phaser.Scene {
             '',
             '✨ 歡迎來到雄女第 78 屆畢業典禮特設互動網站！',
             '📢 [重要提示] 建議保持在橫螢幕狀態下遊玩。',
-           '神奇海螺絕讚罷工中，等不及想留言的可以丟BUG那裏標註是留言!我會幫你手動貼上:(',
+             '      神奇海螺絕讚罷工中，等不及想留言的可以丟BUG那裏標註是留言!我會幫你手動貼上:(',
             ' ',
             '[更新公告]  重新處理了音遊相關的問題與畫面優化。',
             '            新增了場景切換動畫，卡頓問題處理中。'
@@ -137,9 +133,8 @@ class StartScene extends Phaser.Scene {
         const btnHover = this.add.rectangle(btnX, btnY, btnW, btnH, 0xffffff, 0).setStrokeStyle(1.5, 0x5fffb8);
         modalContainer.add(btnHover);
 
-        // 修正：移除不支援的 letterSpacing
         const btnTxt = this.add.text(btnX, btnY, 'ENTER STAGE', {
-            fontSize: '15px', fontFamily: 'monospace', fontWeight: 'bold', fill: '#5fffb8'
+            fontSize: '15px', fontFamily: 'monospace', fontWeight: 'bold', fill: '#5fffb8', letterSpacing: 1
         }).setOrigin(0.5);
         modalContainer.add(btnTxt);
 
@@ -190,10 +185,11 @@ class StartScene extends Phaser.Scene {
                             }
                         });
 
-                        // 優雅淡出畫布並切換場景
+                        // 🎬 優雅淡出畫布，並在淡出完成後啟動科技風 Loading 轉場場景
                         this.cameras.main.fadeOut(500, 0, 0, 0);
                         this.cameras.main.once('camerafadeoutcomplete', () => {
-                            this.scene.start('GameScene'); 
+                            // 🚀 【完美結合點】通知 TransitionScene 開始跑粒子動畫，並在載入完後自動開往 GameScene
+                            this.scene.start('TransitionScene', { nextScene: 'GameScene' }); 
                         });
                     }
                 });
