@@ -184,13 +184,53 @@ class MusicScene extends Phaser.Scene {
         this.judgeTxt = this.add.text(W/2, this.hitY - 50, '', {fontSize:'24px', fill:'#ffffff', fontFamily:'monospace', fontWeight:'bold', align:'center'}).setOrigin(0.5, 0.5).setAlpha(0);
         this.statusTxt = this.add.text(W/2, H/2, '載入譜面中…', {fontSize:'20px', fill:'#a5e8ff', fontFamily:'monospace'}).setOrigin(0.5);
 
-        // ⏸️ 2. 將離開功能改為「暫停按鈕」
-        this.pauseBtn = this.add.text(20, 16, ' ‖   暫停', {
-            fontSize:'14px', fill:'#d4caff', fontFamily:'monospace',
-            backgroundColor:'#1a1a33', padding:{x:12, y:6},
-        }).setScrollFactor(0).setInteractive().setVisible(false)
-          .on('pointerdown', () => this._triggerPause());
+       // ⏸️ 2. 將離開功能改為「暫停按鈕」（防誤觸邊緣 + 顯眼高質感優化版）
+        // 🚀 【防誤觸核心】: 將 X 由 20 移至 45，Y 由 16 移至 45，挪出螢幕極邊緣的安全區
+        this.pauseBtn = this.add.text(45, 45, ' ‖   暫停 ', {
+            fontSize: '16px',               // 稍微放大字體
+            fontWeight: 'bold',
+            fill: '#5fffb8',                // 改為亮眼的霓虹綠
+            fontFamily: "'Noto Sans TC', monospace",
+            backgroundColor: '#0f0f22',     // 深邃的高級背景色
+            padding: { x: 16, y: 10 }       // 加大內邊距，讓按鈕實體變大
+        })
+        .setScrollFactor(0)
+        .setOrigin(0, 0)                    // 靠左上對齊方便定位
+        .setInteractive({ useHandCursor: true })
+        .setVisible(false);
 
+        // ✨ 幫按鈕加上高級的霓虹外框與陰影發光
+        this.pauseBtn.setShadow(0, 0, '#5fffb8', 8, true, true);
+
+        // 🎯 【黑科技】: 額外把點擊判定範圍「再放大」，即使手指按偏了也絕對抓得到！
+        // 這裡把觸控區往外擴張，但視覺上按鈕大小保持精緻
+        this.pauseBtn.input.hitArea.setTo(-10, -10, this.pauseBtn.width + 20, this.pauseBtn.height + 20);
+
+        // 🎨 互動動態回饋（點擊或滑過時會閃爍發光變色）
+        this.pauseBtn.on('pointerover', () => {
+            this.pauseBtn.setStyle({ fill: '#ffffff', backgroundColor: '#6c5fff' });
+            this.pauseBtn.setShadow(0, 0, '#6c5fff', 12, true, true);
+        });
+
+        this.pauseBtn.on('pointerout', () => {
+            this.pauseBtn.setStyle({ fill: '#5fffb8', backgroundColor: '#0f0f22' });
+            this.pauseBtn.setShadow(0, 0, '#5fffb8', 8, true, true);
+        });
+
+        // 點擊觸發暫停
+        this.pauseBtn.on('pointerdown', () => {
+            // 輕微縮放動畫，讓按鈕有被按下去的實體物理回饋感
+            this.tweens.add({
+                targets: this.pauseBtn,
+                scale: 0.92,
+                duration: 50,
+                yoyo: true,
+                onComplete: () => {
+                    this._triggerPause();
+                }
+            });
+        });
+        
         // 觸控與點擊偵測（優化判定區）
         this.input.on('pointerdown', (ptr) => {
             if (!this.gameReady || this.isPaused) return;
