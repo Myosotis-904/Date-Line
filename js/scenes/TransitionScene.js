@@ -12,10 +12,6 @@ class TransitionScene extends Phaser.Scene {
     }
 
     preload() {
-        // 🚀 【核心概念】：把下一個場景需要的「重度資源」或先前漏掉的素材放到這裡載入
-        // 如果你的 GameScene 有大型地圖或音檔，可以改在這邊 load，它就會觸發真實進度。
-        // （註：如果只是想當作純場景切換的緩衝動畫，仍維持 preload 監聽，但保留最底下的安全模擬機制）
-        
         const W = this.scale.width;
         const H = this.scale.height;
 
@@ -76,47 +72,71 @@ class TransitionScene extends Phaser.Scene {
             loop: true
         });
 
-        // 🔄 5. 【核心修復：監聽瀏覽器實際下載進度】
-        // value 是一個從 0.0 到 1.0 的精準浮點數，代表瀏覽器目前加載該場景 preload 素材的真實進度
+        // 🔄 5. 【真實進度監聽核心】
         this.load.on('progress', (value) => {
             this._drawProgressBar(W, H, value);
         });
 
         // 🔒 防掐斷鎖
         this.isTransitioning = false;
+
+        // =================================================================
+        // 🚀 【資源大搬家】把重度載入素材移到此處，進度條才會跟著它們的讀取進度走
+        // =================================================================
+        this.load.image('map',        'assets/map.png');
+        this.load.image('stage',      'assets/stage.png');
+        this.load.image('tree1',      'assets/tree1.png');
+        this.load.image('tree2',      'assets/tree2.png');
+        this.load.image('cocona',     'assets/cocona.png');
+        this.load.image('sign',       'assets/sign.png');
+        this.load.image('crab',       'assets/crab.png');
+        this.load.image('cord',       'assets/cord.png');
+        this.load.image('bunny',      'assets/bunny.png');
+        this.load.image('mailbox',    'assets/mailbox.png');
+        this.load.image('btn_idle',   'assets/btn_idle.png');
+        this.load.image('btn_active', 'assets/btn_active.png');
+        this.load.image('sun',        'assets/sun.png');
+        this.load.image('buttle',     'assets/buttle.png');
+        this.load.image('card',       'assets/card.png');
+        
+        // 🎬 序列幀動畫
+        this.load.spritesheet('wave',   'assets/wave.png',   { frameWidth: 2000, frameHeight: 1240 });
+        this.load.spritesheet('player', 'assets/player.png', { frameWidth: 256, frameHeight: 256 });
+        
+        // 🎵 音樂大檔案
+        this.load.audio('bgm_game', './assets/bgm.mp3');
     }
 
     create() {
-        // 當 preload 裡的真實資源全部「百分之百下載完畢」後，才會進入 create()
         const W = this.scale.width;
         const H = this.scale.height;
 
-        // 確保進度條畫滿 100%
+        // 確保進度條最後百分之百畫滿
         this._drawProgressBar(W, H, 1);
 
         if (!this.isTransitioning) {
             this.isTransitioning = true;
 
-            // 1. 停止文字抖動與粒子定時器
+            // 1. 停止文字抖動
             this.glitchTimer.remove();
 
-            // 2. 🚀 電影級等待：穩穩凝結 150 毫秒，等玩家看清 100% 滿格
+            // 2. 🚀 電影級凝結：穩穩在 100% 停頓 150 毫秒，給玩家眼睛看清楚加載完畢
             this.time.delayedCall(150, () => {
                 
-                // 3. 讓所有 Loading 元件優雅淡出
+                // 3. 所有過場 UI 平滑淡出
                 this.tweens.add({
                     targets: [this.bgMask, this.particleGfx, this.progressGfx, this.loadTxt],
                     alpha: 0,
                     duration: 350,
                     ease: 'Power1.easeOut',
                     onComplete: () => {
-                        // 4. 關閉粒子更新
+                        // 4. 關閉粒子定時器
                         this.particleUpdateTimer.remove();
 
-                        // 5. 🚀 100% 下載完、動畫放完，正式安全開往目標場景
+                        // 5. 🚀 100% 載入好、動畫播完，安全開往 GameScene
                         this.scene.start(this.nextScene, this.sceneData);
 
-                        // 6. 深度內存釋放
+                        // 6. 釋放網頁內存
                         this.particleGfx.destroy();
                         this.progressGfx.destroy();
                         this.loadTxt.destroy();
@@ -127,14 +147,14 @@ class TransitionScene extends Phaser.Scene {
         }
     }
 
-    // 繪製進度條的內部方法
+    // 內部繪製進度條方法
     _drawProgressBar(W, H, progress) {
         if (!this.progressGfx || !this.progressGfx.active) return;
         this.progressGfx.clear();
-        // 外襯底框
+        // 外框
         this.progressGfx.lineStyle(1, 0x3d3470, 0.4);
         this.progressGfx.strokeRect(W / 2 - 160, H / 2, 320, 6);
-        // 真實進度內條
+        // 霓虹綠進度內條
         this.progressGfx.fillStyle(0x5fffb8, 0.9);
         this.progressGfx.fillRect(W / 2 - 160, H / 2 + 1, 320 * progress, 4);
     }
