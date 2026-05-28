@@ -6,28 +6,6 @@
 class GameScene extends Phaser.Scene {
     constructor() { super('GameScene'); }
 
-   preload() {
-        // === 1. 原有的資源載入（preload 階段只純粹註冊載入，不進行任何 this.add 繪圖） ===
-        this.load.image('map',      'assets/map.png');
-        this.load.image('stage',    'assets/stage.png');
-        this.load.image('tree1',    'assets/tree1.png');
-        this.load.image('tree2',    'assets/tree2.png');
-        this.load.image('cocona',   'assets/cocona.png');
-        this.load.image('sign',     'assets/sign.png');
-        this.load.image('crab',     'assets/crab.png');
-        this.load.image('cord',     'assets/cord.png');
-        this.load.image('bunny',    'assets/bunny.png');
-        this.load.image('mailbox',  'assets/mailbox.png');
-        this.load.image('btn_idle', 'assets/btn_idle.png');
-        this.load.image('btn_active','assets/btn_active.png');
-        this.load.image('sun',      'assets/sun.png');
-        this.load.image('buttle',   'assets/buttle.png');
-        this.load.image('card',     'assets/card.png');
-        this.load.spritesheet('wave',   'assets/wave.png',   { frameWidth: 2000, frameHeight: 1240 });
-        this.load.spritesheet('player', 'assets/player.png', { frameWidth: 256, frameHeight: 256 });
-        this.load.audio('bgm_game', './assets/bgm.mp3');
-    }
-
     create() {
         // === 2. ✨ 【安全移植】 — 原 preload 的 Loading 視覺系統與粒子特效搬移至此 ===
         // 在 create() 內執行，this.add、this.tweens 與 this.time 100% 存在，絕對不會報 undefined
