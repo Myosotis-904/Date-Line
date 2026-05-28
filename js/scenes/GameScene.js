@@ -394,11 +394,19 @@ class GameScene extends Phaser.Scene {
         this._cardEl = overlay;
     }
 
-    /* ────────────────────────────────────────────────────────
-       BUG 回報系統 (HTML DOM Overlay)
+   /* ────────────────────────────────────────────────────────
+        BUG 回報系統 (HTML DOM Overlay)
     ──────────────────────────────────────────────────────── */
     _buildBugForm() {
-        this._bugEl = null;
+        this._bugFormEl = null;
+        
+        // 🔍 自動去撈網址後面有沒有掛 ?key=xxxx 供管理員登入
+        const urlParams = new URLSearchParams(window.location.search);
+        this.bugAdminKey = urlParams.get('key') || ''; 
+        
+        // 預設不是管理員，由後端回傳的資料結構動態判定
+        this.isAdmin = false; 
+
         if (!document.getElementById('bug-style')) {
             const s = document.createElement('style');
             s.id = 'bug-style';
@@ -420,232 +428,219 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    /* ── Bug 報表功能（開源安全最佳操作方案） ── */
-_buildBugForm() {
-    this._bugFormEl = null;
-    
-    // 🔍 自動去撈網址後面有沒有掛 ?key=xxxx
-    const urlParams = new URLSearchParams(window.location.search);
-    this.bugAdminKey = urlParams.get('key') || ''; 
-    
-    // 預設不是管理員，由後端回傳的資料結構動態判定
-    this.isAdmin = false; 
-}
+    _openBugForm() {
+        if (this._bugFormEl) return;
 
-_openBugForm() {
-    if (this._bugFormEl) return;
+        const overlay = document.createElement('div');
+        overlay.id = 'bug-form-layout';
+        overlay.style.cssText = `position:fixed; inset:0; background:rgba(10,10,25,0.85); display:flex; align-items:center; justify-content:center; z-index:9999; font-family:'Noto Sans TC', sans-serif;`;
 
-    const overlay = document.createElement('div');
-    overlay.id = 'bug-form-layout';
-    overlay.style.cssText = `position:fixed; inset:0; background:rgba(10,10,25,0.85); display:flex; align-items:center; justify-content:center; z-index:9999; font-family:'Noto Sans TC', sans-serif;`;
-
-    overlay.innerHTML = `
-        <div style="background:#131326; border:1px solid #5a4fff; border-radius:12px; padding:24px 28px; width:min(550px, 92vw); box-shadow:0 0 30px rgba(90,79,255,0.3); color:#d4caff;">
-            <div style="font-size:18px; font-weight:bold; letter-spacing:2px; margin-bottom:16px; display:flex; align-items:center; gap:8px;">
-                🐇 Bug 回報與官方公告
-            </div>
-            
-            <div id="bug-core-content">
-                <div id="form-view">
-                    <label style="color:#9080cc; font-size:13px; display:block; margin-bottom:4px;">你的名字（可不填）</label>
-                    <input id="bug-name" type="text" maxlength="30" placeholder="匿名" style="width:100%; box-sizing:border-box; padding:10px; background:#1a1a33; border:1px solid #3a3460; color:#fff; font-size:14px; border-radius:6px; outline:none; margin-bottom:12px;">
-                    
-                    <label style="color:#9080cc; font-size:13px; display:block; margin-bottom:4px;">問題或建議描述 *</label>
-                    <textarea id="bug-desc" rows="5" maxlength="500" placeholder="請詳細描述您遇到的問題..." style="width:100%; box-sizing:border-box; padding:10px; background:#1a1a33; border:1px solid #3a3460; color:#fff; font-size:14px; border-radius:6px; outline:none; resize:vertical; margin-bottom:16px;"></textarea>
+        overlay.innerHTML = `
+            <div style="background:#131326; border:1px solid #5a4fff; border-radius:12px; padding:24px 28px; width:min(550px, 92vw); box-shadow:0 0 30px rgba(90,79,255,0.3); color:#d4caff;">
+                <div style="font-size:18px; font-weight:bold; letter-spacing:2px; margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+                    🐇 Bug 回報與官方公告
                 </div>
                 
-                <div id="list-view" style="display:none; max-height:380px; overflow-y:auto; margin-bottom:16px; padding-right:4px;">
-                    <p style="text-align:center; color:#ffe066;">載入中...</p>
+                <div id="bug-core-content">
+                    <div id="form-view">
+                        <label style="color:#9080cc; font-size:13px; display:block; margin-bottom:4px;">你的名字（可不填）</label>
+                        <input id="bug-name" type="text" maxlength="30" placeholder="匿名" style="width:100%; box-sizing:border-box; padding:10px; background:#1a1a33; border:1px solid #3a3460; color:#fff; font-size:14px; border-radius:6px; outline:none; margin-bottom:12px;">
+                        
+                        <label style="color:#9080cc; font-size:13px; display:block; margin-bottom:4px;">問題或建議描述 *</label>
+                        <textarea id="bug-desc" rows="5" maxlength="500" placeholder="請詳細描述您遇到的問題..." style="width:100%; box-sizing:border-box; padding:10px; background:#1a1a33; border:1px solid #3a3460; color:#fff; font-size:14px; border-radius:6px; outline:none; resize:vertical; margin-bottom:16px;"></textarea>
+                    </div>
+                    
+                    <div id="list-view" style="display:none; max-height:380px; overflow-y:auto; margin-bottom:16px; padding-right:4px;">
+                        <p style="text-align:center; color:#ffe066;">載入中...</p>
+                    </div>
+                </div>
+
+                <div id="bug-status" style="color:#5fffb8; font-size:12px; margin-bottom:12px; text-align:center; min-height:18px;"></div>
+
+                <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center;">
+                    <button id="bug-view-btn" style="background:#0f1a33; border:1px solid #4fa3ff; color:#9fd0ff; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:13px;">📋 檢視公告/後台</button>
+                    <div style="flex-grow:1;"></div>
+                    <button id="bug-cancel-btn" style="background:transparent; border:1px solid #333355; color:#777799; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px;">取消</button>
+                    <button id="bug-submit-btn" style="background:#1a1233; border:1px solid #5a4fff; color:#b3aaff; padding:8px 24px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:bold;">📤 寄送</button>
                 </div>
             </div>
+        `;
 
-            <div id="bug-status" style="color:#5fffb8; font-size:12px; margin-bottom:12px; text-align:center; min-height:18px;"></div>
+        document.body.appendChild(overlay);
+        this._bugFormEl = overlay;
 
-            <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center;">
-                <button id="bug-view-btn" style="background:#0f1a33; border:1px solid #4fa3ff; color:#9fd0ff; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:13px;">📋 檢視公告/後台</button>
-                <div style="flex-grow:1;"></div>
-                <button id="bug-cancel-btn" style="background:transparent; border:1px solid #333355; color:#777799; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px;">取消</button>
-                <button id="bug-submit-btn" style="background:#1a1233; border:1px solid #5a4fff; color:#b3aaff; padding:8px 24px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:bold;">📤 寄送</button>
-            </div>
-        </div>
-    `;
+        const setStatus = (msg, color = '#5fffb8') => {
+            const el = document.getElementById('bug-status');
+            if (el) { el.textContent = msg; el.style.color = color; }
+        };
 
-    document.body.appendChild(overlay);
-    this._bugFormEl = overlay;
+        document.getElementById('bug-cancel-btn').onclick = () => this._closeBugForm();
 
-    const setStatus = (msg, color = '#5fffb8') => {
-        const el = document.getElementById('bug-status');
-        if (el) { el.textContent = msg; el.style.color = color; }
-    };
+        // ── 核心功能：切換與加載 Bug 列表 ──
+        document.getElementById('bug-view-btn').onclick = async () => {
+            const formView = document.getElementById('form-view');
+            const listView = document.getElementById('list-view');
+            const submitBtn = document.getElementById('bug-submit-btn');
 
-    document.getElementById('bug-cancel-btn').onclick = () => this._closeBugForm();
-
-    // ── 核心功能：切換與加載列表 ──
-    document.getElementById('bug-view-btn').onclick = async () => {
-        const formView = document.getElementById('form-view');
-        const listView = document.getElementById('list-view');
-        const submitBtn = document.getElementById('bug-submit-btn');
-
-        if (listView.style.display === 'block') {
-            listView.style.display = 'none';
-            formView.style.display = 'block';
-            submitBtn.style.display = 'block';
-            document.getElementById('bug-view-btn').textContent = "📋 檢視公告/後台";
-            setStatus('');
-            return;
-        }
-
-        formView.style.display = 'none';
-        submitBtn.style.display = 'none';
-        listView.style.display = 'block';
-        document.getElementById('bug-view-btn').textContent = "✍️ 我要回報";
-        listView.innerHTML = '<p style="text-align:center; color:#ffe066;">安全連線加載中...</p>';
-
-        try {
-            // 將從網址上撈到的 bugAdminKey 傳給後端驗證
-            const res = await fetch(`${API.BUG_URL}?type=bugs&key=${this.bugAdminKey}`);
-            const result = await res.json();
-            listView.innerHTML = '';
-
-            // 依據後端判定傳回的身份，決定解鎖什麼介面
-            this.isAdmin = (result.role === 'admin');
-            const list = result.data || [];
-
-            if (!list || list.length === 0) {
-                listView.innerHTML = `<p style="text-align:center; color:#9080cc; padding:20px;">${this.isAdmin ? '目前沒有待審核的回報資料。' : '目前尚無官方發布的 Bug 公告。'}</p>`;
+            if (listView.style.display === 'block') {
+                listView.style.display = 'none';
+                formView.style.display = 'block';
+                submitBtn.style.display = 'block';
+                document.getElementById('bug-view-btn').textContent = "📋 檢視公告/後台";
+                setStatus('');
                 return;
             }
 
-            list.reverse().forEach(b => {
-                const itemEl = document.createElement('div');
-                itemEl.style.cssText = "background:#1a1a33; border:1px solid #2a2a4d; border-radius:8px; padding:14px; margin-bottom:12px; font-size:13px;";
-                
-                if (this.isAdmin) {
-                    // 👑👑👑 【管理員專屬後台界面】 👑👑👑
-                    const isChecked = b.isPublic === '1' ? 'checked' : '';
-                    itemEl.innerHTML = `
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px; color:#7a7ab3; font-size:11px;">
-                            <span>👤 回報者: ${b.name} (${b.time})</span>
-                            <span style="color:#ffe066;">${b.isPublic === '1' ? '🌐 已公開公告' : '🔒 私密待審'}</span>
-                        </div>
-                        <div style="color:#888; background:#111122; padding:6px; border-radius:4px; margin-bottom:8px; font-size:12px; border-left:2px solid #3a3460; word-break:break-all;">
-                            <b style="color:#666;">[玩家原始內容]:</b> ${b.desc}
-                        </div>
-                        <div style="margin-bottom:8px;">
-                            <span style="color:#9fd0ff; font-size:11px; display:block; margin-bottom:2px;">✍️ 官方篩選/改寫後的公告問題描述：</span>
-                            <textarea id="admin-desc-${b.id}" rows="2" style="width:100%; box-sizing:border-box; background:#0d0d1a; border:1px solid #4a4473; color:#fff; padding:6px; border-radius:4px; font-size:13px; resize:vertical;">${b.adminDesc || b.desc}</textarea>
-                        </div>
-                        <div style="margin-bottom:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                            <span style="color:#9080cc;">狀況:</span>
-                            <label><input type="radio" name="status-${b.id}" value="處理中" ${b.status === '處理中' ? 'checked' : ''}> 🟡 處理中</label>
-                            <label><input type="radio" name="status-${b.id}" value="已修復" ${b.status === '已修復' ? 'checked' : ''}> 🟢 已修復</label>
-                            <label><input type="radio" name="status-${b.id}" value="其他" ${b.status === '其他' ? 'checked' : ''}> 🔵 其他</label>
-                            <div style="flex-grow:1;"></div>
-                            <label style="background:#221b40; padding:3px 8px; border-radius:4px; border:1px solid #5a4fff; cursor:pointer; font-size:11px;">
-                                <input id="public-check-${b.id}" type="checkbox" ${isChecked}> 公開此公告
-                            </label>
-                        </div>
-                        <div style="display:flex; gap:6px;">
-                            <input id="reply-input-${b.id}" type="text" value="${b.reply || ''}" placeholder="輸入給玩家看的回覆描述..." style="flex-grow:1; background:#0d0d1a; border:1px solid #4a4473; color:#fff; padding:6px; border-radius:4px; font-size:12px;">
-                            <button class="save-bug-btn" data-id="${b.id}" style="background:#5a4fff; border:none; color:#fff; padding:4px 14px; border-radius:4px; cursor:pointer; font-weight:bold;">發布</button>
-                        </div>
-                    `;
+            formView.style.display = 'none';
+            submitBtn.style.display = 'none';
+            listView.style.display = 'block';
+            document.getElementById('bug-view-btn').textContent = "✍️ 我要回報";
+            listView.innerHTML = '<p style="text-align:center; color:#ffe066;">安全連線加載中...</p>';
 
-                    // 點擊儲存單條 Bug 狀態
-                    itemEl.querySelector('.save-bug-btn').onclick = async (e) => {
-                        const rId = e.target.getAttribute('data-id');
-                        const rAdminDesc = document.getElementById(`admin-desc-${rId}`).value.trim();
-                        const rReply = document.getElementById(`reply-input-${rId}`).value.trim();
-                        const rStatus = itemEl.querySelector(`input[name="status-${rId}"]:checked`).value;
-                        const rIsPublic = document.getElementById(`public-check-${rId}`).checked ? '1' : '0';
+            try {
+                // 🚀 與獨立後台連動：將 key 傳給純 Bug 專用後台
+                const res = await fetch(`${API.BUG_URL}?type=bugs&key=${this.bugAdminKey}`);
+                const result = await res.json();
+                listView.innerHTML = '';
 
-                        e.target.disabled = true;
-                        setStatus('正在同步至雲端試算表...', '#ffe066');
+                this.isAdmin = (result.role === 'admin');
+                const list = result.data || [];
 
-                        try {
-                            await fetch(API.BUG_URL, {
-                                method: 'POST',
-                                body: JSON.stringify({
-                                    type: 'update_bug',
-                                    key: this.bugAdminKey, // 帶上暗號才能寫入
-                                    id: rId,
-                                    status: rStatus,
-                                    reply: rReply,
-                                    isPublic: rIsPublic,
-                                    adminDesc: rAdminDesc
-                                })
-                            });
-                            setStatus('✓ 發布更新成功！', '#5fffb8');
-                            e.target.disabled = false;
-                        } catch (err) {
-                            setStatus('❌ 儲存失敗', '#ff7eb3');
-                            e.target.disabled = false;
-                        }
-                    };
-
-                } else {
-                    // 👥👥👥 【一般玩家純公告界面】 👥👥👥
-                    let statusColor = b.status === '已修復' ? '#5fffb8' : (b.status === '其他' ? '#4fa3ff' : '#ffe066');
-                    itemEl.innerHTML = `
-                        <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:6px;">
-                            <span style="color:#7a7ab3;">📢 官方公告狀況</span>
-                            <span style="color:${statusColor}; font-weight:bold;">● ${b.status}</span>
-                        </div>
-                        <div style="color:#e0e0ff; background:#111126; padding:8px; border-radius:4px; white-space:pre-line; line-height:1.4;">${b.adminDesc}</div>
-                        <div style="margin-top:6px; padding:6px 8px; background:#192340; border-left:3px solid #4fa3ff; border-radius:2px; color:#9fd0ff;">
-                            <span style="font-weight:bold; font-size:11px; display:block; color:#4fa3ff;">官方回覆：</span>
-                            ${b.reply || '感謝回報，技術人員正全力排查中。'}
-                        </div>
-                    `;
+                if (!list || list.length === 0) {
+                    listView.innerHTML = `<p style="text-align:center; color:#9080cc; padding:20px;">${this.isAdmin ? '目前沒有待審核的回報資料。' : '目前尚無官方發布的 Bug 公告。'}</p>`;
+                    return;
                 }
-                listView.appendChild(itemEl);
-            });
 
-        } catch (err) {
-            listView.innerHTML = '<p style="text-align:center; color:#ff7eb3;">連線失敗，請重試</p>';
-        }
-    };
+                list.reverse().forEach(b => {
+                    const itemEl = document.createElement('div');
+                    itemEl.style.cssText = "background:#1a1a33; border:1px solid #2a2a4d; border-radius:8px; padding:14px; margin-bottom:12px; font-size:13px;";
+                    
+                    if (this.isAdmin) {
+                        // 👑👑👑 【管理員專屬後台界面】 👑👑👑
+                        const isChecked = b.isPublic === '1' ? 'checked' : '';
+                        itemEl.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px; color:#7a7ab3; font-size:11px;">
+                                <span>👤 回報者: ${this._escapeHTML(b.name)} (${b.time})</span>
+                                <span style="color:#ffe066;">${b.isPublic === '1' ? '🌐 已公開公告' : '🔒 私密待審'}</span>
+                            </div>
+                            <div style="color:#888; background:#111122; padding:6px; border-radius:4px; margin-bottom:8px; font-size:12px; border-left:2px solid #3a3460; word-break:break-all;">
+                                <b style="color:#666;">[玩家原始內容]:</b> ${this._escapeHTML(b.desc)}
+                            </div>
+                            <div style="margin-bottom:8px;">
+                                <span style="color:#9fd0ff; font-size:11px; display:block; margin-bottom:2px;">✍️ 官方篩選/改寫後的公告問題描述：</span>
+                                <textarea id="admin-desc-${b.id}" rows="2" style="width:100%; box-sizing:border-box; background:#0d0d1a; border:1px solid #4a4473; color:#fff; padding:6px; border-radius:4px; font-size:13px; resize:vertical;">${this._escapeHTML(b.adminDesc || b.desc)}</textarea>
+                            </div>
+                            <div style="margin-bottom:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                <span style="color:#9080cc;">狀況:</span>
+                                <label><input type="radio" name="status-${b.id}" value="處理中" ${b.status === '處理中' ? 'checked' : ''}> 🟡 處理中</label>
+                                <label><input type="radio" name="status-${b.id}" value="已修復" ${b.status === '已修復' ? 'checked' : ''}> 🟢 已修復</label>
+                                <label><input type="radio" name="status-${b.id}" value="其他" ${b.status === '輕鬆看' ? 'checked' : ''}> 🔵 其他</label>
+                                <div style="flex-grow:1;"></div>
+                                <label style="background:#221b40; padding:3px 8px; border-radius:4px; border:1px solid #5a4fff; cursor:pointer; font-size:11px;">
+                                    <input id="public-check-${b.id}" type="checkbox" ${isChecked}> 公開此公告
+                                </label>
+                            </div>
+                            <div style="display:flex; gap:6px;">
+                                <input id="reply-input-${b.id}" type="text" value="${this._escapeHTML(b.reply || '')}" placeholder="輸入給玩家看的回覆描述..." style="flex-grow:1; background:#0d0d1a; border:1px solid #4a4473; color:#fff; padding:6px; border-radius:4px; font-size:12px;">
+                                <button class="save-bug-btn" data-id="${b.id}" style="background:#5a4fff; border:none; color:#fff; padding:4px 14px; border-radius:4px; cursor:pointer; font-weight:bold;">發布</button>
+                            </div>
+                        `;
 
-    // ── 玩家寄送新 Bug ──
-    document.getElementById('bug-submit-btn').onclick = async () => {
-        const name = document.getElementById('bug-name').value.trim() || '匿名';
-        const desc = document.getElementById('bug-desc').value.trim();
+                        // 點擊儲存單條 Bug 狀態，回傳純 Bug 專用 API
+                        itemEl.querySelector('.save-bug-btn').onclick = async (e) => {
+                            const rId = e.target.getAttribute('data-id');
+                            const rAdminDesc = document.getElementById(`admin-desc-${rId}`).value.trim();
+                            const rReply = document.getElementById(`reply-input-${rId}`).value.trim();
+                            const rStatus = itemEl.querySelector(`input[name="status-${rId}"]:checked`).value;
+                            const rIsPublic = document.getElementById(`public-check-${rId}`).checked ? '1' : '0';
 
-        if (!desc) { setStatus('請填入問題或建議描述！', '#ff7eb3'); return; }
+                            e.target.disabled = true;
+                            setStatus('正在同步至雲端試算表...', '#ffe066');
 
-        document.getElementById('bug-submit-btn').disabled = true;
-        setStatus('正在加密傳送中...', '#ffe066');
+                            try {
+                                await fetch(API.BUG_URL, {
+                                    method: 'POST',
+                                    body: JSON.stringify({
+                                        type: 'update_bug',
+                                        key: this.bugAdminKey,
+                                        id: rId,
+                                        status: rStatus,
+                                        reply: rReply,
+                                        isPublic: rIsPublic,
+                                        adminDesc: rAdminDesc
+                                    })
+                                });
+                                setStatus('✓ 發布更新成功！', '#5fffb8');
+                                e.target.disabled = false;
+                            } catch (err) {
+                                setStatus('❌ 儲存失敗', '#ff7eb3');
+                                e.target.disabled = false;
+                            }
+                        };
 
-        try {
-            await fetch(API.BUG_URL, {
-                method: 'POST',
-                body: JSON.stringify({
-                    type: 'bug',
-                    name: name,
-                    desc: desc,
-                    time: new Date().toLocaleString('zh-TW'),
-                    ua: navigator.userAgent.substring(0, 80)
-                })
-            });
-            setStatus('✓ 提交成功！將進入人工審核，感謝回報 🐇');
-            setTimeout(() => this._closeBugForm(), 1800);
-        } catch (e) {
-            setStatus('⚠️ 傳送失敗', '#ff7eb3');
-            document.getElementById('bug-submit-btn').disabled = false;
-        }
-    };
-}
+                    } else {
+                        // 👥👥👥 【一般玩家純公告界面】 👥👥👥
+                        let statusColor = b.status === '已修復' ? '#5fffb8' : (b.status === '其他' ? '#4fa3ff' : '#ffe066');
+                        itemEl.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:6px;">
+                                <span style="color:#7a7ab3;">📢 官方公告狀況</span>
+                                <span style="color:${statusColor}; font-weight:bold;">● ${this._escapeHTML(b.status)}</span>
+                            </div>
+                            <div style="color:#e0e0ff; background:#111126; padding:8px; border-radius:4px; white-space:pre-line; line-height:1.4;">${this._escapeHTML(b.adminDesc)}</div>
+                            <div style="margin-top:6px; padding:6px 8px; background:#192340; border-left:3px solid #4fa3ff; border-radius:2px; color:#9fd0ff;">
+                                <span style="font-weight:bold; font-size:11px; display:block; color:#4fa3ff;">官方回覆：</span>
+                                ${this._escapeHTML(b.reply || '感謝回報，技術人員正全力排查中。')}
+                            </div>
+                        `;
+                    }
+                    listView.appendChild(itemEl);
+                });
 
-_closeBugForm() {
-    if (this._bugFormEl) { this._bugFormEl.remove(); this._bugFormEl = null; }
-    this.dialogOpen = false;
-}
+            } catch (err) {
+                listView.innerHTML = '<p style="text-align:center; color:#ff7eb3;">連線失敗，請重試</p>';
+            }
+        };
+
+        // ── 玩家寄送新 Bug 至 Bug 專用 API ──
+        document.getElementById('bug-submit-btn').onclick = async () => {
+            const name = document.getElementById('bug-name').value.trim() || '匿名';
+            const desc = document.getElementById('bug-desc').value.trim();
+
+            if (!desc) { setStatus('請填入問題或建議描述！', '#ff7eb3'); return; }
+
+            document.getElementById('bug-submit-btn').disabled = true;
+            setStatus('正在加密傳送中...', '#ffe066');
+
+            try {
+                await fetch(API.BUG_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        type: 'bug',
+                        name: name,
+                        desc: desc,
+                        time: new Date().toLocaleString('zh-TW'),
+                        ua: navigator.userAgent.substring(0, 80)
+                    })
+                });
+                setStatus('✓ 提交成功！將進入人工審核，感謝回報 🐇');
+                setTimeout(() => this._closeBugForm(), 1800);
+            } catch (e) {
+                setStatus('⚠️ 傳送失敗', '#ff7eb3');
+                document.getElementById('bug-submit-btn').disabled = false;
+            }
+        };
+    }
+
+    _closeBugForm() {
+        if (this._bugFormEl) { this._bugFormEl.remove(); this._bugFormEl = null; }
+        this.dialogOpen = false;
+    }
 
     /* ────────────────────────────────────────────────────────
-       GUESTBOOK 留言板系統 (HTML DOM Overlay)
+        GUESTBOOK 留言板系統 (HTML DOM Overlay)
     ──────────────────────────────────────────────────────── */
-    /* ── 留言板 ── */
     _buildGuestbook() { this._gbEl = null; }
+
     async _openGuestbook() {
         if (this._gbEl) return;
         const overlay = document.createElement('div');
@@ -677,48 +672,106 @@ _closeBugForm() {
             </div>`;
         document.body.appendChild(overlay);
         this._gbEl = overlay;
-        const setS = (msg,col='#5fffb8') => { const el=document.getElementById('gb-status'); if(el){el.textContent=msg;el.style.color=col;} };
+
+        const setS = (msg, col = '#5fffb8') => { 
+            const el = document.getElementById('gb-status'); 
+            if (el) { el.textContent = msg; el.style.color = col; } 
+        };
+
         document.getElementById('gb-close').onclick = () => this._closeGuestbook();
+        
+        // 🚀 執行加載獨立留言
         this._loadMessages();
+
+        // 🚀 點擊送出全新留言（串接到純留言專用的 API.MSG_URL）
         document.getElementById('gb-submit').onclick = async () => {
-            const name=document.getElementById('gb-name').value.trim()||'匿名旅人';
-            const mood=document.getElementById('gb-mood').value;
-            const msg=document.getElementById('gb-msg').value.trim();
-            if (!msg){setS('請輸入留言內容！','#ff7eb3');return;}
-            document.getElementById('gb-submit').disabled=true;
-            setS('送出中…','#ffe066');
-            const r=await GSheets.post(API.MSG_URL,{type:'message',name,mood,msg,time:new Date().toLocaleString('zh-TW')});
-            if(r.reason==='no_url'){setS('⚠️ API 未設定','#ffe066');}
-            else{setS('✓ 留言成功！','#5fffb8');document.getElementById('gb-msg').value='';this._insertMessageEl({name,mood,msg,time:'剛剛'},true);}
-            document.getElementById('gb-submit').disabled=false;
+            const name = document.getElementById('gb-name').value.trim() || '匿名旅人';
+            const mood = document.getElementById('gb-mood').value;
+            const msg = document.getElementById('gb-msg').value.trim();
+
+            if (!msg) { setS('請輸入留言內容！', '#ff7eb3'); return; }
+            if (!API.MSG_URL) { setS('⚠️ API 未設定', '#ffe066'); return; }
+
+            document.getElementById('gb-submit').disabled = true;
+            setS('送出中…', '#ffe066');
+
+            try {
+                // 原生高併發 Fetch 寫入
+                const response = await fetch(API.MSG_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: name,
+                        mood: mood,
+                        msg: msg,
+                        time: new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })
+                    })
+                });
+                const result = await response.json();
+
+                if (result.status === 'ok') {
+                    setS('✓ 留言成功！', '#5fffb8');
+                    document.getElementById('gb-msg').value = '';
+                    // 即時在介面最頂端插入剛剛寫入的新卡片
+                    this._insertMessageEl({ name, mood, msg, time: '剛剛' }, true);
+                } else {
+                    setS(`⚠️ 失敗: ${result.msg}`, '#ff7eb3');
+                }
+            } catch (err) {
+                setS('⚠️ 網路連線失敗', '#ff7eb3');
+            } finally {
+                document.getElementById('gb-submit').disabled = false;
+            }
         };
     }
+
+    // 🚀 核心修改：使用原生 Fetch 獲取獨立留言板資料
     async _loadMessages() {
-        const list=document.getElementById('gb-list'); if(!list)return;
-        const messages=await GSheets.get(API.MSG_URL,{type:'messages'});
-        if(!messages.length){list.innerHTML=`<div style="color:#444466;font-size:13px;text-align:center;padding:20px 0;">還沒有留言，來第一個留言吧！🌙</div>`;return;}
-        list.innerHTML='';
-        [...messages].reverse().forEach(m=>this._insertMessageEl(m,false));
+        const list = document.getElementById('gb-list'); 
+        if (!list) return;
+
+        try {
+            // 直接請求留言專用 API 網址，免帶冗餘參數
+            const response = await fetch(API.MSG_URL);
+            const messages = await response.json();
+
+            if (!messages || !messages.length) {
+                list.innerHTML = `<div style="color:#444466;font-size:13px;text-align:center;padding:20px 0;">還沒有留言，來第一個留言吧！🌙</div>`;
+                return;
+            }
+
+            list.innerHTML = '';
+            // 反轉陣列，確保最新的留言永遠出現在最頂端
+            [...messages].reverse().forEach(m => this._insertMessageEl(m, false));
+
+        } catch (err) {
+            list.innerHTML = `<div style="color:#ff7eb3;font-size:13px;text-align:center;padding:20px 0;">暫時無法讀取留言，請重新打開留言板</div>`;
+        }
     }
-    _insertMessageEl(m, prepend=false) {
-        const list=document.getElementById('gb-list'); if(!list)return;
-        if(list.querySelector('div[style*="text-align:center"]'))list.innerHTML='';
-        const card=document.createElement('div');
-        card.style.cssText='background:#131328;border:1px solid #2a2460;border-radius:6px;padding:10px 12px;margin-bottom:8px;';
-        card.innerHTML=`
+
+    _insertMessageEl(m, prepend = false) {
+        const list = document.getElementById('gb-list'); 
+        if (!list) return;
+        if (list.querySelector('div[style*="text-align:center"]')) list.innerHTML = '';
+
+        const card = document.createElement('div');
+        card.style.cssText = 'background:#131328;border:1px solid #2a2460;border-radius:6px;padding:10px 12px;margin-bottom:8px;';
+        card.innerHTML = `
             <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                <span style="color:#7c70c0;font-size:12px;">${m.mood||'🌙'} <strong style="color:#b3aaff;">${this._esc(m.name||'匿名')}</strong></span>
-                <span style="color:#333355;font-size:11px;">${this._esc(m.time||'')}</span>
+                <span style="color:#7c70c0;font-size:12px;">${m.mood || '🌙'} <strong style="color:#b3aaff;">${this._escapeHTML(m.name || '匿名')}</strong></span>
+                <span style="color:#333355;font-size:11px;">${this._escapeHTML(m.time || '')}</span>
             </div>
-            <div style="color:#d4caff;font-size:13px;line-height:1.6;word-break:break-all;">${this._esc(m.msg||'').replace(/\n/g,'<br>')}</div>`;
-        prepend ? list.insertBefore(card,list.firstChild) : list.appendChild(card);
+            <div style="color:#d4caff;font-size:13px;line-height:1.6;word-break:break-all;">${this._escapeHTML(m.msg || '').replace(/\n/g, '<br>')}</div>`;
+        
+        prepend ? list.insertBefore(card, list.firstChild) : list.appendChild(card);
     }
-    _closeGuestbook() { if(this._gbEl){this._gbEl.remove();this._gbEl=null;} this.dialogOpen=false; }
-    _esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
- 
+
+    _closeGuestbook() { 
+        if (this._gbEl) { this._gbEl.remove(); this._gbEl = null; } 
+        this.dialogOpen = false; 
+    }
 
     _escapeHTML(str) {
-        return str.replace(/[&<>'"]/g, 
+        return String(str).replace(/[&<>'"]/g, 
             tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
         );
     }
